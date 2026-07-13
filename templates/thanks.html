@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050914">
+  <title>Diagnóstico recebido | G Tech</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="cursor-glow" aria-hidden="true"></div>
+  <div class="noise" aria-hidden="true"></div>
+  <main class="simple-page">
+    <section class="simple-card glass reveal is-visible" data-tilt data-tilt-strength="4">
+      <div class="brand-mark"><img src="{{ url_for('static', filename='assets/gtech-logo.png') }}" alt="G Tech"></div>
+      <div class="success-mark">✓</div>
+      <div class="eyebrow" style="justify-content:center">DIAGNÓSTICO RECEBIDO</div>
+      <h1>Perfeito{% if lead %}, {{ lead.nome.split()[0] }}{% endif %}. Já recebemos seu contato.</h1>
+      <p>A G Tech agora tem as informações iniciais para analisar sua necessidade. Para acelerar o atendimento, continue a conversa pelo WhatsApp.</p>
+      <div class="simple-actions">
+        <a class="btn btn-primary" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">Continuar no WhatsApp →</a>
+        <a class="btn btn-secondary" href="{{ url_for('index') }}">Voltar ao site</a>
+      </div>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

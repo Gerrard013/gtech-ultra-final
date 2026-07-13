@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#050914">
+  <title>Painel de Leads | G Tech</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <main class="admin-page">
+    <header class="admin-header glass">
+      <div>
+        <div class="eyebrow">G TECH ADMIN</div>
+        <h1>Leads e oportunidades</h1>
+      </div>
+      <div class="admin-actions">
+        <a class="btn btn-secondary" href="{{ url_for('index') }}" target="_blank">Ver site</a>
+        <a class="btn btn-primary" href="{{ url_for('export_csv') }}">Exportar CSV</a>
+      </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}<div class="form-alert {{ category }}" role="alert">{{ message }}</div>{% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <section class="admin-stats">
+      <article class="admin-stat glass"><span>Total de leads</span><strong>{{ counts.total }}</strong></article>
+      <article class="admin-stat glass"><span>Novos</span><strong>{{ counts.novo }}</strong></article>
+      <article class="admin-stat glass"><span>Propostas</span><strong>{{ counts.proposta }}</strong></article>
+      <article class="admin-stat glass"><span>Fechados</span><strong>{{ counts.fechado }}</strong></article>
+    </section>
+
+    <form class="admin-filter glass" method="get" action="{{ url_for('admin_leads') }}">
+      <input type="search" name="q" value="{{ query_text }}" placeholder="Buscar por nome, WhatsApp, negócio ou serviço">
+      <select name="status">
+        <option value="">Todos os status</option>
+        {% for key, label in status_labels.items() %}<option value="{{ key }}" {% if selected_status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <button class="btn btn-primary" type="submit">Filtrar</button>
+    </form>
+
+    <section class="table-wrap glass" aria-label="Tabela de leads">
+      <table>
+        <thead>
+          <tr>
+            <th>Lead</th><th>Contato</th><th>Negócio</th><th>Serviço</th><th>Prazo</th><th>Objetivo</th><th>Origem</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lead in leads %}
+          <tr>
+            <td><span class="lead-name">{{ lead.nome }}</span><br><small>{{ lead.created_at.strftime('%d/%m/%Y %H:%M') }}</small></td>
+            <td>{{ lead.whatsapp }}<br><a class="wa-mini" href="{{ lead.whatsapp_link }}" target="_blank" rel="noopener">Abrir WhatsApp ↗</a></td>
+            <td>{{ lead.negocio }}</td>
+            <td>{{ lead.servico }}</td>
+            <td>{{ lead.prazo }}</td>
+            <td>{{ lead.objetivo }}{% if lead.mensagem %}<br><small>{{ lead.mensagem }}</small>{% endif %}</td>
+            <td>{{ lead.origem or '-' }}</td>
+            <td>
+              <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}">
+                <select name="status">
+                  {% for key, label in status_labels.items() %}<option value="{{ key }}" {% if lead.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
+                </select>
+                <button type="submit">Salvar</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="8">Nenhum lead encontrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="admin-cards" aria-label="Leads em cartões">
+      {% for lead in leads %}
+      <article class="admin-card glass">
+        <h3>{{ lead.nome }}</h3>
+        <p>{{ lead.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+        <a class="wa-mini" href="{{ lead.whatsapp_link }}" target="_blank" rel="noopener">{{ lead.whatsapp }} • Abrir WhatsApp ↗</a>
+        <dl>
+          <dt>Negócio</dt><dd>{{ lead.negocio }}</dd>
+          <dt>Serviço</dt><dd>{{ lead.servico }}</dd>
+          <dt>Prazo</dt><dd>{{ lead.prazo }}</dd>
+          <dt>Objetivo</dt><dd>{{ lead.objetivo }}</dd>
+          <dt>Origem</dt><dd>{{ lead.origem or '-' }}</dd>
+        </dl>
+        <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}">
+          <select name="status">{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if lead.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+          <button type="submit">Salvar</button>
+        </form>
+      </article>
+      {% else %}<article class="admin-card glass">Nenhum lead encontrado.</article>{% endfor %}
+    </section>
+  </main>
+</body>
+</html>

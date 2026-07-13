@@ -1,0 +1,11 @@
+{
+  "name": "G Tech | Innovation & Solutions",
+  "short_name": "G Tech",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050914",
+  "theme_color": "#050914",
+  "icons": [
+    {"src": "/static/assets/favicon.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

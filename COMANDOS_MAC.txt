@@ -1,0 +1,21 @@
+COMANDOS PARA RODAR LOCALMENTE
+
+cd ~/Desktop/gtech_ultra_final
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install -r requirements.txt
+export SECRET_KEY="$(openssl rand -hex 32)"
+export ADMIN_USER="gtech"
+export ADMIN_PASS="GTech2026@Local"
+python app.py
+
+SITE:
+http://127.0.0.1:5000
+
+PAINEL:
+http://127.0.0.1:5000/admin/leads
+
+LOGIN LOCAL:
+Usuário: gtech
+Senha: GTech2026@Local

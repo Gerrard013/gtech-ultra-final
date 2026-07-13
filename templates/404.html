@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050914">
+  <title>Página não encontrada | G Tech</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+  <div class="noise" aria-hidden="true"></div>
+  <main class="simple-page">
+    <section class="simple-card glass">
+      <div class="brand-mark"><img src="{{ url_for('static', filename='assets/gtech-logo.png') }}" alt="G Tech"></div>
+      <div class="eyebrow" style="justify-content:center">ERRO 404</div>
+      <h1>Essa página não existe.</h1>
+      <p>Volte para a página principal ou fale diretamente com a G Tech.</p>
+      <div class="simple-actions">
+        <a class="btn btn-primary" href="{{ url_for('index') }}">Ir para o início</a>
+        <a class="btn btn-secondary" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
