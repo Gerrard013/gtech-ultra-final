@@ -64,11 +64,15 @@ try:
             assert page.locator("#depoimentos .review-proof img").count()==2, "Two real feedback screenshots missing"
             assert page.locator(".intro-logo").count()==0, "Intro should be removed after skip"
             assert "🍔" not in page.locator("#projetos").inner_text(), "Generic burger mockup still present"
-            page.locator("#projetos .video-teaser .teaser-play").first.click()
-            assert page.locator("#projetos iframe.real-video-frame").count()==1, "Click failed to open original Drive video"
-            # Make all below-the-fold content visible in full-page screenshot.
+            # Verify the actual customer feedback screenshots were loaded, not blank boxes.
+            images=page.locator("#depoimentos .review-proof img")
+            page.wait_for_function("Array.from(document.querySelectorAll('#depoimentos .review-proof img')).every(img=>img.complete && img.naturalWidth>0)",timeout=10000)
+            assert images.count()==2
+            # Make all below-the-fold content visible in full-page screenshot, BEFORE replacing a teaser with a blocked iframe.
             page.evaluate("document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'))")
             page.screenshot(path=str(DEST/f"{label}_full.png"),full_page=True,animations="disabled",timeout=30000)
+            page.locator("#projetos .video-teaser .teaser-play").first.click()
+            assert page.locator("#projetos iframe.real-video-frame").count()==1, "Click failed to open original Drive video"
             overflow=page.evaluate("document.documentElement.scrollWidth-window.innerWidth")
             assert overflow<=3, f"Horizontal scroll overflow of {overflow}px on {label}"
             assert not errors, "Page JS errors: "+"; ".join(errors)
