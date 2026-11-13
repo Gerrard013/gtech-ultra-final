@@ -246,6 +246,7 @@ def index():
         nfc_demo_video_available=os.path.isfile(
             os.path.join(BASE_DIR, "static", "media", "nfc-demo.mp4")
         ),
+        drive_preview_enabled=os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
     )
 
 
