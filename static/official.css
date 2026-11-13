@@ -27,7 +27,7 @@ body:not(.js-ready) .reveal{opacity:1;transform:none}
 .intro-coordinate{position:absolute;left:clamp(18px,4vw,60px);bottom:30px;font-size:10px;letter-spacing:.3em;color:#7a95b2;z-index:4}
 .intro-progress{position:absolute;bottom:0;left:0;right:0;height:3px;z-index:8;background:rgba(255,255,255,.03)}
 .intro-progress span{display:block;width:0;height:100%;background:linear-gradient(90deg,#50e1ff,#6992ff,#b782ff);box-shadow:0 0 16px #68dcff;transition:width .1s linear}
-.intro-center.fragmented .intro-logo,.intro-center.fragmented .intro-wordmark{filter:blur(5px);opacity:.1;transform:scale(1.3);transition:opacity .4s,transform .5s,filter .4s}
+.intro-center.fragmented .intro-logo,.intro-center.fragmented .intro-wordmark{animation:none!important;filter:blur(12px)!important;opacity:.06!important;transform:scale(1.3)!important;transition:opacity .4s,transform .5s,filter .4s}
 .intro-center.fragmented .intro-motto{opacity:0;transition:opacity .35s}
 .intro-replay{appearance:none;background:transparent;border:1px solid rgba(140,203,255,.15);color:#84a7c6;border-radius:999px;padding:5px 12px;font-size:10px;font-weight:800;letter-spacing:.08em}
 .intro-replay:hover{color:#cff9ff;border-color:rgba(120,220,255,.5)}
