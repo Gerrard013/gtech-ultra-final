@@ -151,25 +151,50 @@
     };
     fit();
     const sampleLogo = () => {
+      const out=[];
+      const mobile=w<680;
+      const scatter = (x,y,r,g,b) => {
+        const a=random()*Math.PI*2;
+        const v=(90+random()*Math.min(w,h)*.65);
+        out.push({x,y,dx:Math.cos(a)*v,dy:Math.sin(a)*v,spin:random()*1.8-.9,
+                  size:random()*2.4+1.35,r,g,b});
+      };
       try {
+        // The authentic brand mark breaks into individual pixel fragments.
         const off=document.createElement("canvas");off.width=140;off.height=140;
         const c=off.getContext("2d",{willReadFrequently:true});
         c.drawImage(logo,0,0,140,140);
         const px=c.getImageData(0,0,140,140).data;
-        const step=w<680?6:4;
-        const out=[];
+        const step=mobile?7:5, yOffset=mobile?-44:-75;
         for(let y=0;y<140;y+=step)for(let x=0;x<140;x+=step){
-          let i=(y*140+x)*4;
-          if(px[i+3]<70)continue;
-          if(random()<.22)continue;
-          const a=random()*Math.PI*2;
-          const v=80+random()*Math.min(w,h)*.65;
-          out.push({x:(x-70)*1.05,y:(y-70)*1.05,dx:Math.cos(a)*v,dy:Math.sin(a)*v,spin:(random()-.5)*1.8,size:random()*1.6+0.6,r:px[i],g:px[i+1],b:px[i+2]});
+          const i=(y*140+x)*4;
+          if(px[i+3]<70||random()<.2)continue;
+          scatter((x-70)*(mobile?.76:1),(y-70)*(mobile?.76:1)+yOffset,
+                   Math.min(255,px[i]+30),Math.min(255,px[i+1]+45),Math.min(255,px[i+2]+65));
         }
-        dots=out;
-      }catch(_){
-        dots=Array.from({length:800},()=>{const a=random()*Math.PI*2;const radius=Math.sqrt(random())*70;return{x:Math.cos(a)*radius,y:Math.sin(a)*radius,dx:Math.cos(a)*250,dy:Math.sin(a)*250,spin:random()*2-1,size:random()*2+.4,r:84,g:215,b:255};});
+      } catch (_) { /* Wordmark particles remain available without image read access. */ }
+      // A second particle field reproduces and then breaks up the G TECH wordmark.
+      const letters=document.createElement("canvas");letters.width=520;letters.height=130;
+      const cc=letters.getContext("2d",{willReadFrequently:true});
+      cc.fillStyle="#e8f7ff";cc.font="900 99px Inter, Arial, sans-serif";
+      cc.textAlign="center";cc.textBaseline="middle";cc.fillText("G TECH",260,69,510);
+      const px=cc.getImageData(0,0,520,130).data;
+      const stride=mobile?9:6;
+      const scale=mobile?.58:1.32;
+      const yOffset=mobile?78:105;
+      for(let y=0;y<130;y+=stride)for(let x=0;x<520;x+=stride){
+        const i=(y*520+x)*4;
+        if(px[i+3]<100||random()<.13)continue;
+        scatter((x-260)*scale,(y-69)*scale+yOffset,170+random()*85,204+random()*51,245);
       }
+      // Ensure there is always a visually obvious breakup on restricted browsers.
+      if(out.length<80){
+        for(let i=0;i<550;i++){
+          const a=random()*Math.PI*2,rad=Math.sqrt(random())*(mobile?90:230);
+          scatter(Math.cos(a)*rad,Math.sin(a)*rad,95,220,255);
+        }
+      }
+      dots=out;
     };
     if(logo.complete && logo.naturalWidth)sampleLogo();
     else logo.addEventListener("load",sampleLogo,{once:true});
@@ -227,10 +252,16 @@
           const p=dots[i], theta=burst*burst;
           const px=cx+p.x*(1+.25*burst)+p.dx*theta;
           const py=cy+p.y*(1+.25*burst)+p.dy*theta;
-          const opacity=(.15+.78*burst)*(1-smoothstep(.82,.99,t));
-          const size=p.size*(.6+burst*.7);
-          ctx.fillStyle="rgba("+Math.min(255,p.r+38)+","+Math.min(255,p.g+54)+","+Math.min(255,p.b+65)+","+opacity.toFixed(3)+")";
+          const opacity=Math.min(1,(.58+.42*burst)*(1-smoothstep(.87,1,t)));
+          const size=p.size*(.9+burst*.7);
+          ctx.fillStyle="rgba("+Math.min(255,p.r+38)+","+Math.min(255,p.g+40)+","+Math.min(255,p.b+44)+","+opacity.toFixed(3)+")";
           ctx.fillRect(px,py,size,size);
+          if(burst>.08 && i%5===0){
+            ctx.strokeStyle="rgba(99,215,255,"+(opacity*.7).toFixed(3)+")";
+            ctx.lineWidth=1.35;
+            ctx.beginPath();ctx.moveTo(px-p.dx*.055*burst,py-p.dy*.055*burst);
+            ctx.lineTo(px,py);ctx.stroke();
+          }
         }
         ctx.restore();
       }
