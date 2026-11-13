@@ -112,6 +112,26 @@
   }
 
   // Atomic G TECH cinematic logo opening. Canvas renders real particles, no external animation service.
+  // Load third-party Drive players on explicit interaction only.
+  // Public production will use local MP4 files after media approval.
+  document.querySelectorAll(".video-teaser").forEach(teaser => {
+    const button=teaser.querySelector(".teaser-play");
+    button?.addEventListener("click",() => {
+      const url=teaser.getAttribute("data-video-src") || "";
+      if(!/^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/preview$/.test(url)) return;
+      const frame=document.createElement("iframe");
+      frame.src=url;
+      frame.title=teaser.getAttribute("data-video-title") || "Demonstração real da G Tech";
+      frame.allow="autoplay; fullscreen";
+      frame.allowFullscreen=true;
+      frame.referrerPolicy="no-referrer";
+      frame.loading="eager";
+      frame.className="real-video-frame";
+      const holder=teaser.parentElement;
+      if(holder) { holder.classList.add("is-playing"); teaser.replaceWith(frame); }
+    });
+  });
+
   const introTemplate = document.getElementById("gtech-intro-template");
   const replay = document.getElementById("gtech-intro-replay");
   let activeIntro = null;
