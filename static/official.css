@@ -34,3 +34,15 @@ body:not(.js-ready) .reveal{opacity:1;transform:none}
 @keyframes intro-reveal{0%{opacity:0;transform:translateY(20px) scale(.9);filter:blur(14px)}100%{opacity:1;transform:translateY(0) scale(1);filter:blur(0)}}
 @media(max-width:650px){.intro-logo{width:104px;height:104px}.intro-wordmark{font-size:clamp(48px,17vw,89px);letter-spacing:.09em;text-indent:.09em}.intro-motto{font-size:8px;letter-spacing:.22em;text-indent:.22em}.intro-coordinate{font-size:8px}.hero-bottom .intro-replay{margin-left:auto;margin-right:7px}}
 @media(prefers-reduced-motion:reduce){.gtech-intro{display:none!important}.intro-logo,.intro-wordmark,.intro-motto{animation:none!important}}
+
+/* Isolated staging media: real source videos, never loaded on public production. */
+.media-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:17px}
+.media-card{overflow:hidden;border:1px solid var(--stroke);border-radius:21px;background:linear-gradient(150deg,#142a48,#080f1d)}
+.media-frame{height:360px;background:#030812}
+.media-frame iframe{width:100%;height:100%;border:0;display:block}
+.media-caption{padding:21px}
+.media-caption span{font-size:10px;letter-spacing:.14em;color:var(--cyan);font-weight:900}
+.media-caption h3{font-size:21px;letter-spacing:-.04em;line-height:1.24;margin:11px 0}
+.media-caption p{font-size:13px;color:var(--muted);margin:0}
+@media(max-width:850px){.media-grid{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.media-grid{grid-template-columns:1fr}.media-frame{height:320px}}
