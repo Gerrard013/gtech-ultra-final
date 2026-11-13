@@ -187,6 +187,8 @@ def set_security_headers(response: Response) -> Response:
     if request.path.startswith("/admin") or request.path == "/obrigado":
         response.headers["Cache-Control"] = "no-store, private"
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     return response
 
 
