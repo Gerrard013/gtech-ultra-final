@@ -102,7 +102,6 @@ class OfficialSiteTests(unittest.TestCase):
         auth = {"Authorization": "Basic " + key}
         page = self.client.get("/admin/leads", headers=auth)
         self.assertEqual(page.status_code, 200)
-        self.assertIn(b'admin_csrf', page.data)
         with app.app_context():
             lead = Lead(nome="Cliente Exemplo", whatsapp="91999991234",
                         negocio="Teste", servico="Site Profissional",
@@ -110,6 +109,8 @@ class OfficialSiteTests(unittest.TestCase):
             db.session.add(lead)
             db.session.commit()
             ident = lead.id
+        page = self.client.get("/admin/leads", headers=auth)
+        self.assertIn(b'admin_csrf', page.data)
         path = f"/admin/leads/{ident}/status"
         self.assertEqual(self.client.post(path, data={"status": "proposta"}, headers=auth).status_code, 400)
         with self.client.session_transaction() as sess:
