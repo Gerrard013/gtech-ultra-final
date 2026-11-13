@@ -47,6 +47,13 @@ try:
             assert page.locator('.gtech-intro').count()==1, "Intro missing on first visit"
             page.wait_for_timeout(600)
             page.screenshot(path=str(DEST/f"{label}_intro.png"))
+            # Record the actual particle shatter at three points, not a still mockup.
+            page.wait_for_timeout(1350)
+            page.screenshot(path=str(DEST/f"{label}_atom_break_1.png"))
+            page.wait_for_timeout(530)
+            page.screenshot(path=str(DEST/f"{label}_atom_break_2.png"))
+            page.wait_for_timeout(430)
+            page.screenshot(path=str(DEST/f"{label}_atom_break_3.png"))
             page.locator("#gtech-intro-skip").click()
             page.wait_for_timeout(720)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
