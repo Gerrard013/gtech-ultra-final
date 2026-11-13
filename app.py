@@ -312,6 +312,9 @@ def sync_lead_to_crm(lead: Lead, city: str) -> None:
 
 @app.post("/lead")
 def create_lead():
+    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
+        # Preview has disposable storage; do not accept live personal information.
+        abort(403)
     token = request.form.get("csrf_token", "")
     expected_token = session.get("lead_csrf", "")
     if not token or not expected_token or not secrets.compare_digest(token, expected_token):
