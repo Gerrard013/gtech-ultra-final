@@ -115,7 +115,7 @@
   const introTemplate = document.getElementById("gtech-intro-template");
   const replay = document.getElementById("gtech-intro-replay");
   let activeIntro = null;
-  const introDuration = 4600;
+  const introDuration = 3400;
   function playGtechIntro(force = false) {
     if (reduced.matches || !introTemplate || activeIntro) return;
     try { if (!force && sessionStorage.getItem("gtech_intro_seen_v2")) return; }
@@ -152,46 +152,37 @@
     fit();
     const sampleLogo = () => {
       const out=[];
-      const mobile=w<680;
-      const scatter = (x,y,r,g,b) => {
-        const a=random()*Math.PI*2;
-        const v=(90+random()*Math.min(w,h)*.65);
-        out.push({x,y,dx:Math.cos(a)*v,dy:Math.sin(a)*v,spin:random()*1.8-.9,
-                  size:random()*2.4+1.35,r,g,b});
-      };
+      const size=280;
+      const off=document.createElement("canvas");off.width=size;off.height=size;
+      const c=off.getContext("2d",{willReadFrequently:true});
+      const display=Math.min(w<680 ? w*.92 : w*.74, w<680 ? 350 : 530);
+      const scale=display/size;
       try {
-        // The authentic brand mark breaks into individual pixel fragments.
-        const off=document.createElement("canvas");off.width=140;off.height=140;
-        const c=off.getContext("2d",{willReadFrequently:true});
-        c.drawImage(logo,0,0,140,140);
-        const px=c.getImageData(0,0,140,140).data;
-        const step=mobile?7:5, yOffset=mobile?-44:-75;
-        for(let y=0;y<140;y+=step)for(let x=0;x<140;x+=step){
-          const i=(y*140+x)*4;
-          if(px[i+3]<70||random()<.2)continue;
-          scatter((x-70)*(mobile?.76:1),(y-70)*(mobile?.76:1)+yOffset,
-                   Math.min(255,px[i]+30),Math.min(255,px[i+1]+45),Math.min(255,px[i+2]+65));
+        // Sample the exact official logo, including its custom G Tech lettering.
+        // The white document background is ignored, never shattered into particles.
+        c.drawImage(logo,0,0,size,size);
+        const px=c.getImageData(0,0,size,size).data;
+        const step=w<680?6:5;
+        for(let y=0;y<size;y+=step)for(let x=0;x<size;x+=step){
+          const i=(y*size+x)*4, r=px[i],g=px[i+1],b=px[i+2];
+          const light=Math.min(r,g,b);
+          if(px[i+3]<100||light>242||random()<.14)continue;
+          const a=random()*Math.PI*2;
+          const speed=85+random()*Math.min(w,h)*.56;
+          out.push({
+            x:(x-size/2)*scale,y:(y-size/2)*scale,
+            dx:Math.cos(a)*speed,dy:Math.sin(a)*speed,
+            size:(random()*1.7+1.2)*(w<680?.9:1.15),
+            r:Math.min(255,r+18),g:Math.min(255,g+24),b:Math.min(255,b+29)
+          });
         }
-      } catch (_) { /* Wordmark particles remain available without image read access. */ }
-      // A second particle field reproduces and then breaks up the G TECH wordmark.
-      const letters=document.createElement("canvas");letters.width=520;letters.height=130;
-      const cc=letters.getContext("2d",{willReadFrequently:true});
-      cc.fillStyle="#e8f7ff";cc.font="900 99px Inter, Arial, sans-serif";
-      cc.textAlign="center";cc.textBaseline="middle";cc.fillText("G TECH",260,69,510);
-      const px=cc.getImageData(0,0,520,130).data;
-      const stride=mobile?9:6;
-      const scale=mobile?.58:1.32;
-      const yOffset=mobile?78:105;
-      for(let y=0;y<130;y+=stride)for(let x=0;x<520;x+=stride){
-        const i=(y*520+x)*4;
-        if(px[i+3]<100||random()<.13)continue;
-        scatter((x-260)*scale,(y-69)*scale+yOffset,170+random()*85,204+random()*51,245);
-      }
-      // Ensure there is always a visually obvious breakup on restricted browsers.
-      if(out.length<80){
-        for(let i=0;i<550;i++){
-          const a=random()*Math.PI*2,rad=Math.sqrt(random())*(mobile?90:230);
-          scatter(Math.cos(a)*rad,Math.sin(a)*rad,95,220,255);
+      }catch(_){}
+      if(out.length<120){
+        for(let i=0;i<650;i++){
+          const a=random()*Math.PI*2,rad=Math.sqrt(random())*Math.min(w*.27,180);
+          out.push({x:Math.cos(a)*rad,y:Math.sin(a)*rad,
+                    dx:Math.cos(a)*(85+random()*300),dy:Math.sin(a)*(85+random()*300),
+                    size:1+random()*2,r:48,g:190,b:236});
         }
       }
       dots=out;
@@ -218,7 +209,7 @@
       const elapsed=now-started;const t=elapsed/introDuration;
       progress.style.width=Math.min(100,t*100)+"%";
       ctx.fillStyle="#030812";ctx.fillRect(0,0,w,h);
-      const cx=w/2,cy=h*.46;
+      const cx=w/2,cy=h*.5;
       // Film-title stars + subtle central bloom
       const bloom=ctx.createRadialGradient(cx,cy,12,cx,cy,Math.max(w,h)*.62);
       bloom.addColorStop(0,"rgba(20,74,136,.22)");bloom.addColorStop(.37,"rgba(13,35,82,.12)");bloom.addColorStop(1,"rgba(2,4,9,0)");
@@ -229,7 +220,7 @@
         ctx.fillStyle="rgba(166,211,255,"+flicker.toFixed(3)+")";ctx.fill();
       }
       // Atomic orbits: original geometry, evolving independently of logo pixels.
-      const atomA=smoothstep(0,.24,t)*(1-smoothstep(.76,.97,t));
+      const atomA=smoothstep(0,.13,t)*(1-smoothstep(.67,.94,t));
       const radius=Math.min(w*.4,h*.48,300)*(.75+.14*Math.sin(now*.00038));
       ctx.save();ctx.translate(cx,cy);ctx.rotate(-.16);
       for(let k=0;k<3;k++){
@@ -244,15 +235,15 @@
         ctx.restore();
       }
       ctx.restore();
-      const burst=smoothstep(.50,.76,t);
-      if(t>.47)center.classList.add("fragmented");
+      const burst=smoothstep(.39,.73,t);
+      if(t>.41)center.classList.add("fragmented");
       if(dots.length){
         ctx.save();ctx.globalCompositeOperation="screen";
         for(let i=0;i<dots.length;i++){
           const p=dots[i], theta=burst*burst;
           const px=cx+p.x*(1+.25*burst)+p.dx*theta;
           const py=cy+p.y*(1+.25*burst)+p.dy*theta;
-          const opacity=Math.min(1,(.58+.42*burst)*(1-smoothstep(.87,1,t)));
+          const opacity=Math.min(1,(.52+.48*burst)*(1-smoothstep(.84,.99,t)));
           const size=p.size*(.9+burst*.7);
           ctx.fillStyle="rgba("+Math.min(255,p.r+38)+","+Math.min(255,p.g+40)+","+Math.min(255,p.b+44)+","+opacity.toFixed(3)+")";
           ctx.fillRect(px,py,size,size);
@@ -265,8 +256,8 @@
         }
         ctx.restore();
       }
-      if(t>.53&&t<.85){
-        const shock=smoothstep(.53,.8,t);
+      if(t>.46&&t<.86){
+        const shock=smoothstep(.46,.8,t);
         ctx.beginPath();ctx.arc(cx,cy,shock*Math.max(w,h)*.5,0,Math.PI*2);
         ctx.strokeStyle="rgba(101,205,255,"+((1-shock)*.75).toFixed(3)+")";ctx.lineWidth=2;ctx.stroke();
       }
