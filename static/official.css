@@ -46,3 +46,6 @@ body:not(.js-ready) .reveal{opacity:1;transform:none}
 .media-caption p{font-size:13px;color:var(--muted);margin:0}
 @media(max-width:850px){.media-grid{grid-template-columns:1fr 1fr}}
 @media(max-width:600px){.media-grid{grid-template-columns:1fr}.media-frame{height:320px}}
+
+/* Preview environment only - keep the production page unchanged. */
+.preview-banner{position:relative;z-index:95;background:#16314c;color:#bfeaff;text-align:center;border-bottom:1px solid rgba(109,222,255,.22);font-size:11px;letter-spacing:.04em;font-weight:800;padding:9px 12px}
