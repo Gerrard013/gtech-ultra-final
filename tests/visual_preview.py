@@ -54,8 +54,9 @@ try:
             page.screenshot(path=str(DEST/f"{label}_atom_break_2.png"))
             page.wait_for_timeout(430)
             page.screenshot(path=str(DEST/f"{label}_atom_break_3.png"))
-            page.locator("#gtech-intro-skip").click()
-            page.wait_for_timeout(720)
+            # Trigger the close handler safely after the late shatter frames; the intro may already be fading.
+            page.evaluate("document.querySelector(\'#gtech-intro-skip\')?.click()")
+            page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
             assert page.locator("#solucoes .service-card").count()==6, "Six offers not present"
             assert page.locator("#midias-reais iframe").count()==3, "Original videos not wired in preview"
