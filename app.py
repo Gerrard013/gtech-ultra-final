@@ -8,7 +8,6 @@ import os
 import re
 import secrets
 import urllib.request
-from urllib.parse import urlsplit
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote
@@ -185,6 +184,9 @@ def set_security_headers(response: Response) -> Response:
     response.headers.setdefault(
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )
+    if request.path.startswith("/admin") or request.path == "/obrigado":
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
 
 
@@ -369,6 +371,8 @@ def privacy_policy():
 @app.route("/admin/leads")
 @requires_auth
 def admin_leads():
+    if "admin_csrf" not in session:
+        session["admin_csrf"] = secrets.token_urlsafe(32)
     query_text = clean_text(request.args.get("q"), 120)
     selected_status = clean_text(request.args.get("status"), 40)
 
@@ -402,12 +406,17 @@ def admin_leads():
         selected_status=selected_status,
         query_text=query_text,
         year=datetime.utcnow().year,
+        admin_csrf=session["admin_csrf"],
     )
 
 
 @app.post("/admin/leads/<int:lead_id>/status")
 @requires_auth
 def update_lead_status(lead_id: int):
+    token = request.form.get("admin_csrf", "")
+    expected = session.get("admin_csrf", "")
+    if not token or not expected or not secrets.compare_digest(token, expected):
+        abort(400)
     lead = db.get_or_404(Lead, lead_id)
     new_status = clean_text(request.form.get("status"), 40)
     if new_status not in STATUS_LABELS:
@@ -467,6 +476,19 @@ def export_csv():
 @app.route("/robots.txt")
 def robots():
     return send_from_directory(app.static_folder, "robots.txt")
+
+
+@app.route("/sitemap.xml")
+def sitemap():
+    base = "https://gtech-ultra-final-production.up.railway.app"
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"<url><loc>{base}/</loc></url>"
+        f"<url><loc>{base}/privacidade</loc></url>"
+        "</urlset>"
+    )
+    return Response(content, mimetype="application/xml")
 
 
 @app.route("/health")
