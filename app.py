@@ -240,6 +240,12 @@ def index():
         nfc_video_available=os.path.isfile(
             os.path.join(BASE_DIR, "static", "media", "hero-nfc.mp4")
         ),
+        cardapio_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "cardapio-demo.mp4")
+        ),
+        nfc_demo_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "nfc-demo.mp4")
+        ),
     )
 
 
