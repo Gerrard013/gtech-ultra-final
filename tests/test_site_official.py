@@ -117,6 +117,19 @@ class OfficialSiteTests(unittest.TestCase):
             token = sess["admin_csrf"]
         self.assertEqual(self.client.post(path, data={"status": "proposta", "admin_csrf": token}, headers=auth).status_code, 302)
 
+    def test_preview_does_not_collect_leads_or_get_indexed(self):
+        with patch.dict(os.environ, {"RAILWAY_ENVIRONMENT": "preview"}):
+            page = self.client.get("/")
+            self.assertEqual(page.status_code, 200)
+            self.assertEqual(page.headers.get("X-Robots-Tag"), "noindex, nofollow, noarchive")
+            self.assertIn(b'noindex,nofollow', page.data)
+            self.assertIn(b'drive.google.com', page.data)
+            payload = self.lead_data()
+            blocked = self.client.post("/lead", data=payload)
+            self.assertEqual(blocked.status_code, 403)
+            with app.app_context():
+                self.assertEqual(Lead.query.count(), 0)
+
     def test_privacy_thanks_and_sitemap(self):
         self.assertEqual(self.client.get("/privacidade").status_code, 200)
         self.assertEqual(self.client.get("/obrigado?lead_id=100").status_code, 200)
