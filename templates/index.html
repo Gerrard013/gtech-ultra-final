@@ -85,6 +85,8 @@
             {% if nfc_video_available %}
             <video id="showcase-video" class="scene-video" muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='assets/gtech-logo.png') }}" aria-label="Demonstração de plaquinha NFC G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4"></video>
             <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
+            {% elif drive_preview_enabled %}
+            <iframe class="scene-drive" loading="lazy" title="Demonstração real de NFC enviada pela G Tech" src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
             {% else %}
             <div class="nfc-demo" aria-hidden="true"><div class="nfc-tile"><span class="nfc-icon">⌁</span><strong>G TECH</strong><small>Seu negócio a um toque.</small><span class="card-chip">NFC</span></div><div class="signal signal-one"></div><div class="signal signal-two"></div><div class="phone-demo"><span class="phone-island"></span><div class="phone-screen"><span>G Tech</span><b>Uma conexão.<br>Novas possibilidades.</b><i>● ● ●</i><span class="phone-button">Abrir perfil</span></div></div></div>
             {% endif %}
