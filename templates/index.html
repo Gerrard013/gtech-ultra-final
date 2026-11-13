@@ -129,10 +129,12 @@
           <div class="form-top"><span>G TECH / BRIEFING</span><span>SEM COMPROMISSO</span></div>
           <form action="{{ url_for('create_lead') }}" method="post" id="quote-form">
             <input type="hidden" name="origem" id="origem" value="site_oficial_v2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
             {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="form-flashes" role="alert">{% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
             <div class="form-row"><label>Seu nome <span>*</span><input name="nome" type="text" required maxlength="120" autocomplete="name" placeholder="Como podemos chamar você?"></label><label>WhatsApp com DDD <span>*</span><input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel" inputmode="tel" placeholder="(91) 99999-9999"></label></div>
             <label>Nome do negócio <span>*</span><input name="negocio" type="text" required maxlength="180" autocomplete="organization" placeholder="Empresa, marca ou projeto pessoal"></label>
+            <label>Seu município (opcional)<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém, Ananindeua, outra cidade"></label>
             <div class="form-row"><label>Solução desejada <span>*</span><select name="servico" id="service-select" required><option value="">Selecione</option>{% for service in services %}<option value="{{ service.form_value }}">{{ service.title }}</option>{% endfor %}<option value="Outro serviço">Outro / quero orientação</option></select></label><label>Quando pretende começar? <span>*</span><select name="prazo" required><option value="">Selecione</option><option>O mais rápido possível</option><option>Em até 7 dias</option><option>Em até 30 dias</option><option>Estou pesquisando</option></select></label></div>
             <label>O que você precisa? <span>*</span><textarea name="objetivo" required maxlength="2000" rows="3" placeholder="Descreva seu projeto em poucas palavras."></textarea></label>
             <label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o uso dos meus dados para responder a esta solicitação de orçamento. Não autorizo campanhas de marketing.</span></label>
