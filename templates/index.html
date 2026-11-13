@@ -24,6 +24,20 @@
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"https://gtech-ultra-final-production.up.railway.app/","logo":"https://gtech-ultra-final-production.up.railway.app/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
 <body>
+  <template id="gtech-intro-template">
+    <div class="gtech-intro" role="dialog" aria-modal="true" aria-label="Abertura cinematográfica da G Tech">
+      <canvas id="gtech-intro-canvas" aria-hidden="true"></canvas>
+      <div class="intro-vignette" aria-hidden="true"></div>
+      <div class="intro-center">
+        <img class="intro-logo" id="gtech-intro-logo" src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="">
+        <span class="intro-wordmark">G TECH</span>
+        <span class="intro-motto">INNOVATION <i></i> SOLUTIONS</span>
+      </div>
+      <div class="intro-progress"><span id="gtech-intro-progress"></span></div>
+      <button class="intro-skip" type="button" id="gtech-intro-skip">Pular abertura <span aria-hidden="true">→</span></button>
+      <div class="intro-coordinate" aria-hidden="true">G TECH / THE FUTURE IS NOW</div>
+    </div>
+  </template>
   <a class="skip" href="#conteudo">Ir ao conteúdo</a>
   <div class="reading-line" aria-hidden="true"><span id="scroll-progress"></span></div>
   <div class="grain" aria-hidden="true"></div>
@@ -72,7 +86,7 @@
           <div class="scene-tag tag-left">Sites <b>que conectam.</b></div><div class="scene-tag tag-right">NFC <b>sem complicação.</b></div>
         </div>
       </div>
-      <div class="hero-bottom wrap"><span>DESÇA PARA EXPLORAR</span><span class="arrow-down" aria-hidden="true">↓</span><span>DESIGN • TECNOLOGIA • EXPERIÊNCIA</span></div>
+      <div class="hero-bottom wrap"><span>DESÇA PARA EXPLORAR</span><button id="gtech-intro-replay" class="intro-replay" type="button" title="Assistir novamente à abertura cinematográfica">↻ Rever abertura</button><span class="arrow-down" aria-hidden="true">↓</span><span>DESIGN • TECNOLOGIA • EXPERIÊNCIA</span></div>
     </section>
 
     <section class="partners-bar" aria-label="Áreas de atuação">
