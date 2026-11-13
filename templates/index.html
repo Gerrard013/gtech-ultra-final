@@ -86,7 +86,8 @@
             <video id="showcase-video" class="scene-video" muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='assets/gtech-logo.png') }}" aria-label="Demonstração de plaquinha NFC G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4"></video>
             <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
             {% elif drive_preview_enabled %}
-            <iframe class="scene-drive" loading="lazy" title="Demonstração real de NFC enviada pela G Tech" src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1wcl786wroufMreLbvlOhb_b6Iit4hsGo&sz=w960')" data-video-src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" data-video-title="Vídeo original: NFC EM AÇÃO" role="group" aria-label="Reprodução do vídeo original NFC EM AÇÃO">
+ <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>NFC EM AÇÃO</strong><p>Veja o NFC aproximando e abrindo o conteúdo no celular</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: NFC EM AÇÃO"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="nfc-demo" aria-hidden="true"><div class="nfc-tile"><span class="nfc-icon">⌁</span><strong>G TECH</strong><small>Seu negócio a um toque.</small><span class="card-chip">NFC</span></div><div class="signal signal-one"></div><div class="signal signal-two"></div><div class="phone-demo"><span class="phone-island"></span><div class="phone-screen"><span>G Tech</span><b>Uma conexão.<br>Novas possibilidades.</b><i>● ● ●</i><span class="phone-button">Abrir perfil</span></div></div></div>
             {% endif %}
@@ -137,7 +138,8 @@
             {% if nfc_demo_video_available %}
             <video controls playsinline preload="metadata" aria-label="Demonstração de NFC da G Tech"><source src="{{ url_for('static',filename='media/nfc-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
             {% elif drive_preview_enabled %}
-            <iframe loading="lazy" title="Vídeo real: NFC da G Tech funcionando com celular" src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1wcl786wroufMreLbvlOhb_b6Iit4hsGo&sz=w960')" data-video-src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" data-video-title="Vídeo original: NFC EM AÇÃO" role="group" aria-label="Reprodução do vídeo original NFC EM AÇÃO">
+ <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>NFC EM AÇÃO</strong><p>Veja o NFC aproximando e abrindo o conteúdo no celular</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: NFC EM AÇÃO"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / NFC</span><strong>Vídeo real de NFC</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
@@ -152,7 +154,8 @@
             {% if cardapio_video_available %}
             <video controls playsinline preload="metadata" aria-label="Gravação real de cardápio digital da G Tech"><source src="{{ url_for('static',filename='media/cardapio-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
             {% elif drive_preview_enabled %}
-            <iframe loading="lazy" title="Vídeo real do cardápio digital G Tech" src="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g&sz=w960')" data-video-src="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/preview" data-video-title="Vídeo original: CARDÁPIO DIGITAL REAL" role="group" aria-label="Reprodução do vídeo original CARDÁPIO DIGITAL REAL">
+ <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>CARDÁPIO DIGITAL REAL</strong><p>Assista à navegação no projeto da G Tech</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: CARDÁPIO DIGITAL REAL"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / CARDÁPIO DIGITAL</span><strong>Gravação do projeto real</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
@@ -167,7 +170,8 @@
             {% if nfc_video_available %}
             <video controls playsinline preload="metadata" aria-label="Plaquinha NFC personalizada da G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
             {% elif drive_preview_enabled %}
-            <iframe loading="lazy" title="Vídeo original de plaquinhas NFC Google e Instagram" src="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM&sz=w960')" data-video-src="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/preview" data-video-title="Vídeo original: PLAQUINHAS PERSONALIZADAS" role="group" aria-label="Reprodução do vídeo original PLAQUINHAS PERSONALIZADAS">
+ <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>PLAQUINHAS PERSONALIZADAS</strong><p>Assista ao produto NFC físico em demonstração</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: PLAQUINHAS PERSONALIZADAS"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / PRODUTO REAL</span><strong>Personalização NFC</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
@@ -187,7 +191,7 @@
         {% for item in feedbacks %}
         <article class="review-card reveal">
           <a class="review-proof" href="{{ url_for('static',filename='assets/' ~ item.image) }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem original do feedback {{ loop.index }}">
-            <img src="{{ url_for('static',filename='assets/' ~ item.image) }}" loading="lazy" width="785" height="635" alt="Captura de conversa de cliente elogiando a entrega da G Tech, com dados pessoais de identificação omitidos">
+            <img src="{{ url_for('static',filename='assets/' ~ item.image) }}" loading="eager" decoding="async" width="785" height="635" alt="Captura de conversa de cliente elogiando a entrega da G Tech, com dados pessoais de identificação omitidos">
             <span>Ampliar mensagem original <span aria-hidden="true">↗</span></span>
           </a>
           <div class="review-quote"><span class="quote-mark" aria-hidden="true">“</span><blockquote>{{ item.quote }}</blockquote><p>{{ item.context }}</p></div>
