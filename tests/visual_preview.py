@@ -59,7 +59,10 @@ try:
             page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
             assert page.locator("#solucoes .service-card").count()==6, "Six offers not present"
-            assert page.locator("#midias-reais iframe").count()==3, "Original videos not wired in preview"
+            assert page.locator("#projetos iframe").count()==3, "Real portfolio videos not wired into preview"
+            assert page.locator("#depoimentos .review-proof img").count()==2, "Two real feedback screenshots missing"
+            assert page.locator(".intro-logo").count()==0, "Intro should be removed after skip"
+            assert "🍔" not in page.locator("#projetos").inner_text(), "Generic burger mockup still present"
             # Make all below-the-fold content visible in full-page screenshot.
             page.evaluate("document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'))")
             page.screenshot(path=str(DEST/f"{label}_full.png"),full_page=True,animations="disabled",timeout=30000)
