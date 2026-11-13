@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import logging
 import os
 import re
 import secrets
+import urllib.request
+from urllib.parse import urlsplit
 from datetime import datetime
 from functools import wraps
 from urllib.parse import quote
@@ -17,6 +21,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     send_from_directory,
     url_for,
 )
@@ -110,52 +115,40 @@ CONTACTS = {
 
 SERVICES = [
     {
-        "id": "cardapio",
-        "number": "01",
-        "title": "Cardápio Digital Premium",
-        "form_value": "Cardápio Digital Premium",
-        "description": (
-            "Uma vitrine mobile para apresentar produtos, promoções e receber pedidos "
-            "com muito mais clareza."
-        ),
-        "benefits": ["QR Code", "WhatsApp integrado", "Categorias e promoções"],
-        "icon": "menu",
+        "id": "nfc", "title": "Placa NFC Personalizada",
+        "form_value": "Placa NFC Personalizada", "symbol": "⌁",
+        "category": "PRODUTO FÍSICO + DIGITAL", "price": "R$ 79,99",
+        "description": "Um toque para abrir perfis, contatos e experiências digitais. Inclui configuração; a entrega segue condições combinadas."
     },
     {
-        "id": "site",
-        "number": "02",
-        "title": "Landing Page & Site",
-        "form_value": "Landing Page ou Site",
-        "description": (
-            "Presença digital de alto padrão para transformar visitas em conversas, "
-            "orçamentos e oportunidades."
-        ),
-        "benefits": ["Mobile-first", "SEO básico", "Captura de leads"],
-        "icon": "rocket",
+        "id": "site", "title": "Sites Profissionais",
+        "form_value": "Site Profissional", "symbol": "◉",
+        "category": "PRESENÇA DIGITAL", "price": "A partir de R$ 500",
+        "description": "Sua empresa com uma vitrine clara, responsiva e pronta para receber contatos. Manutenção contratada separadamente."
     },
     {
-        "id": "automacao",
-        "number": "03",
-        "title": "Automação & Sistemas",
-        "form_value": "Automação ou Sistema",
-        "description": (
-            "Soluções sob medida para reduzir tarefas repetitivas, organizar informações "
-            "e ganhar produtividade."
-        ),
-        "benefits": ["Fluxos personalizados", "Painéis", "Banco de dados"],
-        "icon": "settings",
+        "id": "google", "title": "Perfil da Empresa no Google",
+        "form_value": "Perfil da Empresa no Google", "symbol": "⌖",
+        "category": "PRESENÇA LOCAL", "price": "R$ 150",
+        "description": "Revisão e organização de informações do perfil empresarial, quando elegível. Serviço independente do Google."
     },
     {
-        "id": "fotos",
-        "number": "04",
-        "title": "Fotos & Restauração",
-        "form_value": "Fotos ou Restauração",
-        "description": (
-            "Restauração fiel, melhoria de qualidade e apresentação visual profissional "
-            "para memórias e marcas."
-        ),
-        "benefits": ["Restauração fiel", "Melhoria visual", "Artes digitais"],
-        "icon": "image",
+        "id": "cardapio", "title": "Cardápios Digitais Premium",
+        "form_value": "Cardápio Digital Premium", "symbol": "▦",
+        "category": "RESTAURANTES E DELIVERY", "price": "Sob orçamento",
+        "description": "Cardápio interativo pensado para celular, com produtos, categorias, QR Code e caminho simples para pedidos."
+    },
+    {
+        "id": "foto", "title": "Restauração de Fotografias",
+        "form_value": "Fotos ou Restauração", "symbol": "▧",
+        "category": "IMAGEM E MEMÓRIA", "price": "A partir de R$ 10",
+        "description": "Recuperação cuidadosa de fotos antigas, preservando características e respeitando a imagem original."
+    },
+    {
+        "id": "automacao", "title": "Automações & Soluções",
+        "form_value": "Automação ou Sistema", "symbol": "◇",
+        "category": "TECNOLOGIA PARA EMPRESAS", "price": "Sob análise",
+        "description": "Organização de processos e projetos digitais sob medida, sujeitos a análise de escopo e enquadramento do serviço."
     },
 ]
 
@@ -196,8 +189,10 @@ def set_security_headers(response: Response) -> Response:
 
 
 def check_auth(username: str, password: str) -> bool:
-    expected_user = os.getenv("ADMIN_USER", "gtech")
-    expected_pass = os.getenv("ADMIN_PASS", "gtech123")
+    expected_user = os.getenv("ADMIN_USER") or ""
+    expected_pass = os.getenv("ADMIN_PASS") or ""
+    if not (expected_user and expected_pass):
+        return False
     return secrets.compare_digest(username, expected_user) and secrets.compare_digest(
         password, expected_pass
     )
@@ -224,24 +219,95 @@ def clean_text(value: str | None, max_length: int) -> str:
 
 def valid_phone(value: str) -> bool:
     digits = re.sub(r"\D", "", value)
-    return 10 <= len(digits) <= 13
+    if digits.startswith("55") and len(digits) in (12, 13):
+        digits = digits[2:]
+    return len(digits) in (10, 11) and digits.isdigit()
 
 
 @app.route("/")
 def index():
+    if "lead_csrf" not in session:
+        session["lead_csrf"] = secrets.token_urlsafe(32)
     return render_template(
         "index.html",
         contacts=CONTACTS,
         services=SERVICES,
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
+        csrf_token=session["lead_csrf"],
+        nfc_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "hero-nfc.mp4")
+        ),
     )
+
+
+def sync_lead_to_crm(lead: Lead, city: str) -> None:
+    """Optional best-effort hand-off; local database is the source of recovery."""
+    if os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() != "true":
+        return
+    endpoint = os.getenv("CRM_LEAD_CAPTURE_URL", "").strip()
+    # Never send customer data to an unverified or unexpected destination.
+    expected = "https://web-production-846ce.up.railway.app/api/public/lead"
+    if endpoint != expected:
+        logging.warning("G Tech lead sync skipped: CRM endpoint not approved")
+        return
+    mapping = {
+        "Placa NFC Personalizada": "nfc",
+        "Site Profissional": "site",
+        "Perfil da Empresa no Google": "google",
+        "Cardápio Digital Premium": "site",
+        "Fotos ou Restauração": "foto",
+    }
+    product = mapping.get(lead.servico)
+    if not product:
+        logging.info("G Tech lead kept locally: service not mapped to CRM")
+        return
+    number = re.sub(r"\D", "", lead.whatsapp)
+    if not number.startswith("55"):
+        number = "55" + number
+    body = {
+        "name": lead.nome,
+        "company": lead.negocio,
+        "phone": number,
+        "city": city or "Não informado",
+        "sector": "Site oficial G Tech",
+        "product": product,
+        "quantity": 1,
+        "start": "agora" if lead.prazo == "O mais rápido possível" else "pesquisando",
+        "details": (
+            "Origem: site oficial. "
+            "Serviço original: " + lead.servico + ". "
+            "Necessidade: " + lead.objetivo[:550] + ". "
+            "ID interno: " + str(lead.id) + ". "
+            "Nenhum pagamento foi confirmado."
+        )[:900],
+        "consent": True,
+        "website": "",
+    }
+    try:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4) as response:
+            logging.info("G Tech CRM lead sync: HTTP %s", response.status)
+    except Exception:
+        logging.warning("G Tech CRM lead sync failed; original lead saved locally")
 
 
 @app.post("/lead")
 def create_lead():
+    token = request.form.get("csrf_token", "")
+    expected_token = session.get("lead_csrf", "")
+    if not token or not expected_token or not secrets.compare_digest(token, expected_token):
+        abort(400)
     if request.form.get("website"):
         abort(400)
+    if request.form.get("consentimento") != "yes":
+        flash("É necessário autorizar o uso dos dados para responder ao orçamento.", "error")
+        return redirect(url_for("index") + "#contato")
 
     nome = clean_text(request.form.get("nome"), 120)
     whatsapp = clean_text(request.form.get("whatsapp"), 40)
@@ -251,15 +317,20 @@ def create_lead():
     objetivo = clean_text(request.form.get("objetivo"), 2000)
     mensagem = clean_text(request.form.get("mensagem"), 2000)
     origem = clean_text(request.form.get("origem"), 180)
+    cidade = clean_text(request.form.get("cidade"), 100)
 
     required = [nome, whatsapp, negocio, servico, prazo, objetivo]
-    if not all(required):
+    allowed_services = {item["form_value"] for item in SERVICES} | {"Outro serviço"}
+    allowed_deadlines = {
+        "O mais rápido possível", "Em até 7 dias", "Em até 30 dias", "Estou pesquisando"
+    }
+    if not all(required) or servico not in allowed_services or prazo not in allowed_deadlines:
         flash("Revise os campos obrigatórios antes de enviar.", "error")
-        return redirect(url_for("index") + "#diagnostico")
+        return redirect(url_for("index") + "#contato")
 
     if not valid_phone(whatsapp):
         flash("Digite um WhatsApp válido com DDD.", "error")
-        return redirect(url_for("index") + "#diagnostico")
+        return redirect(url_for("index") + "#contato")
 
     lead = Lead(
         nome=nome,
@@ -268,25 +339,31 @@ def create_lead():
         servico=servico,
         prazo=prazo,
         objetivo=objetivo,
-        mensagem=mensagem,
+        mensagem=(("Cidade: " + cidade + "\n") if cidade else "") + mensagem,
         origem=origem,
     )
     db.session.add(lead)
     db.session.commit()
+    # Do not fail the customer journey when the CRM integration is unavailable.
+    sync_lead_to_crm(lead, cidade)
+    return redirect(url_for("thanks"))
 
-    return redirect(url_for("thanks", lead_id=lead.id))
 
 
 @app.route("/obrigado")
 def thanks():
-    lead_id = request.args.get("lead_id", type=int)
-    lead = db.session.get(Lead, lead_id) if lead_id else None
+    # Do not expose names or other lead details through guessable URL IDs.
     return render_template(
         "thanks.html",
         contacts=CONTACTS,
-        lead=lead,
+        lead=None,
         year=datetime.utcnow().year,
     )
+
+
+@app.route("/privacidade")
+def privacy_policy():
+    return render_template("privacidade.html", contacts=CONTACTS, year=datetime.utcnow().year)
 
 
 @app.route("/admin/leads")
@@ -394,7 +471,7 @@ def robots():
 
 @app.route("/health")
 def health():
-    return {"status": "ok"}, 200
+    return {"status": "ok", "service": "gtech-site-oficial"}, 200
 
 
 @app.errorhandler(404)
