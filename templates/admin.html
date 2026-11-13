@@ -65,7 +65,7 @@
             <td>{{ lead.objetivo }}{% if lead.mensagem %}<br><small>{{ lead.mensagem }}</small>{% endif %}</td>
             <td>{{ lead.origem or '-' }}</td>
             <td>
-              <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}">
+              <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}"><input type="hidden" name="admin_csrf" value="{{ admin_csrf }}">
                 <select name="status">
                   {% for key, label in status_labels.items() %}<option value="{{ key }}" {% if lead.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}
                 </select>
@@ -93,7 +93,7 @@
           <dt>Objetivo</dt><dd>{{ lead.objetivo }}</dd>
           <dt>Origem</dt><dd>{{ lead.origem or '-' }}</dd>
         </dl>
-        <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}">
+        <form class="status-form" method="post" action="{{ url_for('update_lead_status', lead_id=lead.id) }}"><input type="hidden" name="admin_csrf" value="{{ admin_csrf }}">
           <select name="status">{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if lead.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
           <button type="submit">Salvar</button>
         </form>
