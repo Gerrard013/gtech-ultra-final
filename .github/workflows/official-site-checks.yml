@@ -28,3 +28,31 @@ jobs:
         env:
           RAILWAY_ENVIRONMENT: ""
           CRM_LEAD_SYNC_ENABLED: "false"
+
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout review branch
+        uses: actions/checkout@v4
+      - name: Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install app dependencies + browser test harness
+        run: |
+          python -m pip install -r requirements.txt
+          python -m pip install playwright==1.56.0
+          python -m playwright install --with-deps chromium
+      - name: JavaScript syntax
+        run: node --check static/official.js
+      - name: Run visual snapshots on desktop and mobile
+        run: python tests/visual_preview.py
+      - name: Save browser screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gtech-site-2-visual-preview
+          path: artifacts/site-preview/
+          if-no-files-found: warn
