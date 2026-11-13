@@ -151,3 +151,30 @@ h1,h2,h3,.section-head h2,.hero h1,.spotlight h2,.contact-copy h2,.final-content
  .review-cta{flex-direction:column;align-items:flex-start}
  .review-cta .pill-cta{width:100%}
 }
+
+/* Official artwork remains pixel-identical to the submitted logo. No synthesized lettering or color-key artefacts. */
+.intro-logo{filter:drop-shadow(0 0 36px rgba(0,199,237,.25))!important;
+ background:#fff!important;border-radius:26px!important;
+ box-shadow:0 0 0 1px rgba(255,255,255,.18),0 34px 100px rgba(0,0,0,.5);
+ padding:0!important}
+.intro-center.fragmented .intro-logo{filter:blur(12px)!important;opacity:.04!important}
+.brand-icon{background:#fff;border:1px solid rgba(255,255,255,.8);border-radius:12px;box-shadow:0 2px 19px rgba(0,197,237,.13)}
+.brand-icon img{filter:none!important}
+.video-teaser{isolation:isolate;position:relative;display:grid;place-items:center;width:100%;height:100%;min-height:250px;
+ background:radial-gradient(circle at 55% 35%,#173a57,#061525 64%);overflow:hidden}
+.video-teaser:before{content:"";z-index:-1;position:absolute;inset:0;background-image:linear-gradient(180deg,rgba(4,14,29,.26),rgba(3,13,27,.92)),var(--video-thumb,none);
+ background-repeat:no-repeat;background-position:center;background-size:cover;opacity:.88;transition:transform .6s,opacity .3s}
+.video-teaser:hover:before{transform:scale(1.04);opacity:1}
+.video-teaser:after{content:"";z-index:-1;position:absolute;inset:15px;border-radius:14px;border:1px solid rgba(207,232,249,.2);pointer-events:none}
+.teaser-content{padding:30px 25px;max-width:420px;text-align:center;color:#f1faff}
+.teaser-eyebrow{display:block;color:#9fecff;font:900 9px/1.3 "Manrope",sans-serif;letter-spacing:.16em;margin-bottom:17px}
+.teaser-content>strong{font:750 clamp(22px,3vw,33px)/1.1 "Oxanium","Manrope",sans-serif;display:block;text-transform:uppercase;letter-spacing:-.025em}
+.teaser-content>p{font-size:12px;line-height:1.65;color:#d4e7f6;margin:15px auto 20px;max-width:290px}
+.teaser-play{display:inline-flex;align-items:center;justify-content:center;gap:10px;
+ border:1px solid rgba(147,236,255,.6);background:#07cae7;color:#052036;font:900 12px "Manrope",sans-serif;
+ border-radius:999px;padding:12px 19px;transition:transform .2s,filter .2s}
+.teaser-play:hover{filter:brightness(1.15);transform:scale(1.04)}
+.teaser-play span{font-size:13px}
+.real-video-frame{display:block;width:100%;height:100%;border:0;background:#020815}
+.portfolio-player.is-playing,.product-scene:has(.real-video-frame){background:#020815}
+@media(prefers-reduced-motion:reduce){.video-teaser:before,.teaser-play{transition:none!important}}
