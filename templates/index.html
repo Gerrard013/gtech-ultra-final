@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060b16">
-  <meta name="description" content="G Tech em Belém/PA: placas NFC, sites, cardápios digitais, Perfil da Empresa no Google, restauração de fotos e soluções tecnológicas. Peça um orçamento.">
+  <meta name="description" content="G Tech em Belém, Pará: plaquinhas NFC personalizadas, sites profissionais, cardápios digitais e organização do Perfil da Empresa no Google. Orçamento pelo WhatsApp.">
   <meta name="robots" content="{% if drive_preview_enabled %}noindex,nofollow{% else %}index,follow,max-image-preview:large{% endif %}">
   <link rel="canonical" href="https://gtech-ultra-final-production.up.railway.app/">
   <meta property="og:type" content="website">
@@ -16,22 +16,28 @@
   <meta property="og:image" content="{{ url_for('static',filename='assets/og-gtech.jpg',_external=True) }}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="color-scheme" content="dark">
-  <title>G Tech | Sites, NFC, Google e soluções digitais</title>
+  <title>G Tech Belém | Plaquinhas NFC, Sites e Google Maps</title>
   <link rel="icon" href="{{ url_for('static',filename='assets/favicon.png') }}" type="image/png">
   <link rel="preload" as="image" href="{{ url_for('static',filename='assets/gtech-logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='official.css') }}">
   <script defer src="{{ url_for('static', filename='official.js') }}"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"https://gtech-ultra-final-production.up.railway.app/","logo":"https://gtech-ultra-final-production.up.railway.app/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
 <body>
+  <!-- Transparent rendering of the *existing official logo*; the original source file is never altered. -->
+  <svg class="gtech-svg-filters" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" width="0" height="0" focusable="false">
+    <defs><filter id="gtech-remove-white" x="-5%" y="-5%" width="110%" height="110%" color-interpolation-filters="sRGB">
+      <feColorMatrix type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  -2.5 -2.5 -2.5 0 7.45"/>
+    </filter></defs>
+  </svg>
   <template id="gtech-intro-template">
     <div class="gtech-intro" role="dialog" aria-modal="true" aria-label="Abertura cinematográfica da G Tech">
       <canvas id="gtech-intro-canvas" aria-hidden="true"></canvas>
       <div class="intro-vignette" aria-hidden="true"></div>
       <div class="intro-center">
-        <img class="intro-logo" id="gtech-intro-logo" src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="">
-        <span class="intro-wordmark">G TECH</span>
-        <span class="intro-motto">INNOVATION <i></i> SOLUTIONS</span>
+        <img class="intro-logo" id="gtech-intro-logo" src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="G Tech — escudo original, G, órbita e assinatura Innovation &amp; Solutions">
       </div>
       <div class="intro-progress"><span id="gtech-intro-progress"></span></div>
       <button class="intro-skip" type="button" id="gtech-intro-skip">Pular abertura <span aria-hidden="true">→</span></button>
@@ -45,8 +51,8 @@
   <header class="topbar" id="topo">
     <div class="topbar-inner">
       <a href="#inicio" class="brand" aria-label="G Tech, início">
-        <img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" width="46" height="46" alt="Logo da G Tech">
-        <span>G TECH <small>INNOVATION &amp; SOLUTIONS</small></span>
+        <span class="brand-icon"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" width="160" height="160" alt=""></span>
+        <span class="brand-type">G Tech <small>INNOVATION &amp; SOLUTIONS</small></span>
       </a>
       <nav class="main-nav" id="menu-links" aria-label="Menu principal">
         <a href="#solucoes">Soluções</a>
@@ -64,13 +70,13 @@
       <div class="hero-grid wrap">
         <div class="hero-text">
           <div class="micro-label"><span class="pulse"></span> G TECH • BELÉM / PARÁ • BRASIL</div>
-          <h1 id="hero-title">Seu negócio no <span class="glow-text">próximo nível.</span></h1>
-          <p class="hero-lead">Sites que impressionam. Plaquinhas NFC que conectam. Presença digital que facilita o contato. Tecnologia aplicada ao que importa: o seu negócio.</p>
+          <h1 id="hero-title">Sites, NFC e Google para <span class="glow-text">destacar sua empresa.</span></h1>
+          <p class="hero-lead">A G Tech cria sites profissionais, plaquinhas NFC personalizadas, cardápios digitais e soluções de presença online. Conheça projetos reais e fale diretamente com quem desenvolve.</p>
           <div class="hero-buttons">
-            <a class="btn btn-solid" href="#solucoes">Explorar soluções <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-solid" href="#solucoes">Ver serviços e preços <span aria-hidden="true">↗</span></a>
             <a class="btn btn-outline" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar no WhatsApp</a>
           </div>
-          <div class="hero-trust"><span>✓ Projetos reais</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
+          <div class="hero-trust"><span>✓ Demonstrações reais</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
         </div>
         <div class="hero-visual" aria-label="Demonstrações dos produtos G Tech">
           <div class="orbital orbital-one" aria-hidden="true"></div><div class="orbital orbital-two" aria-hidden="true"></div>
@@ -118,33 +124,79 @@
       </div>
     </section>
 
-    <section id="projetos" class="section wrap" aria-labelledby="projects-title">
-      <div class="section-head reveal"><div><span class="eyebrow">03 / PORTFÓLIO</span><h2 id="projects-title">Não é só conceito.<br><em>São soluções aplicadas.</em></h2></div><p>Demonstrações de recursos e projetos desenvolvidos pela G Tech. Vídeos completos entram após validação de direitos e compressão.</p></div>
-      <div class="project-grid">
-        <article class="project-card project-primary reveal">{% if cardapio_video_available %}<div class="project-screen project-video-wrap"><video class="project-video" data-portfolio-video muted playsinline loop preload="none" controls aria-label="Demonstração de cardápio digital G Tech"><source src="{{ url_for('static',filename='media/cardapio-demo.mp4') }}" type="video/mp4"></video></div>{% else %}<div class="project-screen menu-screen" aria-hidden="true"><span class="screen-top">G TECH / CARDÁPIO PREMIUM</span><div class="menu-plate">🍔</div><strong>Uma vitrine que desperta vontade.</strong><div class="menu-rows"><i></i><i></i><i></i></div><span class="screen-button">Ver cardápio</span></div>{% endif %}<div class="project-caption"><div><small>WEB EXPERIENCE</small><h3>Cardápios digitais premium</h3><p>Vitrine mobile, categorias claras e caminhos para o pedido.</p></div><a href="#contato" data-product="Cardápio Digital Premium" aria-label="Solicitar cardápio digital">↗</a></div></article>
-        <article class="project-card reveal">{% if nfc_demo_video_available %}<div class="project-screen project-video-wrap"><video class="project-video" data-portfolio-video muted playsinline loop preload="none" controls aria-label="Demonstração de plaquinha NFC G Tech"><source src="{{ url_for('static',filename='media/nfc-demo.mp4') }}" type="video/mp4"></video></div>{% else %}<div class="project-screen nfc-screen" aria-hidden="true"><div class="mini-tile"><strong>G TECH</strong><span>⌁</span><small>APROXIME E CONECTE</small></div><div class="mini-phone"><span>Conexão NFC</span><b>Seu negócio<br>mais perto.</b></div></div>{% endif %}<div class="project-caption"><div><small>PRODUTO FÍSICO + DIGITAL</small><h3>Plaquinhas NFC</h3><p>Conexões práticas para perfis, contatos e experiências.</p></div><a href="#contato" data-product="Placa NFC Personalizada" aria-label="Solicitar NFC">↗</a></div></article>
-        <article class="project-card reveal"><div class="project-screen digital-screen" aria-hidden="true"><span>G TECH / WEB & AUTOMATION</span><div class="digital-nodes"><i></i><i></i><i></i><i></i><i></i></div><strong>Design. Código.<br>Resultado entregue.</strong></div><div class="project-caption"><div><small>SITES E SISTEMAS</small><h3>Projetos digitais</h3><p>Sites profissionais e soluções sob medida.</p></div><a href="#contato" data-product="Site Profissional" aria-label="Solicitar site">↗</a></div></article>
+    <section id="projetos" class="section portfolio-real wrap" aria-labelledby="projects-title">
+      <div class="section-head reveal">
+        <div><span class="eyebrow">03 / PROJETOS REAIS</span><h2 id="projects-title">Veja o que a G Tech<br><em>realmente entrega.</em></h2></div>
+        <p>Sem hamburgueres desenhados nem imagens de banco. Estas são demonstrações de produtos e projetos da própria G Tech.</p>
       </div>
-      <p class="portfolio-clarity">Os elementos gráficos acima ilustram categorias do portfólio; demonstrações em vídeo dos trabalhos reais serão integradas após sua aprovação.</p>
-    </section>
-
-    {% if drive_preview_enabled %}
-    <section class="section wrap" id="midias-reais" aria-labelledby="media-title">
-      <div class="section-head reveal"><div><span class="eyebrow">PRÉVIA DE REVISÃO / VÍDEOS ORIGINAIS</span><h2 id="media-title">Veja a G Tech<br><em>em movimento.</em></h2></div><p>Conteúdo real enviado pelo proprietário. Nesta prévia, os vídeos estão incorporados pelo Google Drive e podem exigir acesso à conta. No lançamento serão hospedados como arquivos otimizados do próprio site.</p></div>
-      <div class="media-grid">
-        <article class="media-card reveal"><div class="media-frame"><iframe title="Vídeo demonstrativo de NFC com celular" loading="lazy" referrerpolicy="no-referrer" allow="autoplay;fullscreen" allowfullscreen src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview"></iframe></div><div class="media-caption"><span>01 • NFC EM AÇÃO</span><h3>Uma aproximação, uma experiência.</h3><p>Demonstração com produto real e celular.</p></div></article>
-        <article class="media-card reveal"><div class="media-frame"><iframe title="Vídeo de demonstração do cardápio digital" loading="lazy" referrerpolicy="no-referrer" allow="autoplay;fullscreen" allowfullscreen src="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/preview"></iframe></div><div class="media-caption"><span>02 • CARDÁPIO DIGITAL</span><h3>O cardápio transforma a navegação.</h3><p>Gravação do produto real utilizado como portfólio.</p></div></article>
-        <article class="media-card reveal"><div class="media-frame"><iframe title="Vídeo do produto de NFC para Instagram e Google" loading="lazy" referrerpolicy="no-referrer" allow="autoplay;fullscreen" allowfullscreen src="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/preview"></iframe></div><div class="media-caption"><span>03 • PLAQUINHAS PERSONALIZADAS</span><h3>Presença digital além da tela.</h3><p>Produto físico configurado para experiências digitais.</p></div></article>
-      </div><p class="portfolio-clarity">Área exclusiva do ambiente de prévia. Esses arquivos ainda não foram carregados no servidor do site; precisamos validar hospedagem e autorização final antes da versão pública.</p>
-    </section>
-    {% endif %}
-    <section id="como-funciona" class="section process-section" aria-labelledby="process-title">
-      <div class="wrap"><div class="section-head reveal"><div><span class="eyebrow">04 / PROCESSO</span><h2 id="process-title">Do primeiro contato<br><em>à entrega.</em></h2></div><p>Um processo transparente, com acompanhamento e aprovação antes das etapas que geram cobrança.</p></div><div class="process-grid"><article class="reveal"><span>01</span><h3>Converse</h3><p>Conte qual desafio seu negócio precisa resolver.</p></article><article class="reveal"><span>02</span><h3>Receba a proposta</h3><p>Alinhamos o escopo, o prazo e as condições.</p></article><article class="reveal"><span>03</span><h3>Aprove</h3><p>Você confirma o projeto e as condições antes do início.</p></article><article class="reveal"><span>04</span><h3>Receba</h3><p>Entregamos o que foi contratado e orientamos a utilização.</p></article></div></div>
+      <div class="portfolio-grid">
+        <article class="portfolio-card portfolio-feature reveal">
+          <div class="portfolio-player">
+            {% if nfc_demo_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Demonstração de NFC da G Tech"><source src="{{ url_for('static',filename='media/nfc-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% elif drive_preview_enabled %}
+            <iframe loading="lazy" title="Vídeo real: NFC da G Tech funcionando com celular" src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / NFC</span><strong>Vídeo real de NFC</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>DEMONSTRAÇÃO REAL • NFC</small><h3>Seu negócio a um toque.</h3><p>Veja a plaquinha NFC sendo utilizada com um celular. Produto físico com configuração digital.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Quero meu NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+          </div>
+        </article>
+        <article class="portfolio-card reveal">
+          <div class="portfolio-player">
+            {% if cardapio_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Gravação real de cardápio digital da G Tech"><source src="{{ url_for('static',filename='media/cardapio-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% elif drive_preview_enabled %}
+            <iframe loading="lazy" title="Vídeo real do cardápio digital G Tech" src="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / CARDÁPIO DIGITAL</span><strong>Gravação do projeto real</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>PROJETO REAL • CARDÁPIO DIGITAL</small><h3>Cardápio premium de verdade.</h3><p>Uma gravação real da experiência, com navegação pelos produtos e organização do cardápio.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Cardápio Digital Premium" class="pill-cta">Quero um cardápio ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+          </div>
+        </article>
+        <article class="portfolio-card reveal">
+          <div class="portfolio-player">
+            {% if nfc_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Plaquinha NFC personalizada da G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% elif drive_preview_enabled %}
+            <iframe loading="lazy" title="Vídeo original de plaquinhas NFC Google e Instagram" src="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/preview" allow="autoplay; fullscreen" referrerpolicy="no-referrer" allowfullscreen></iframe>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / PRODUTO REAL</span><strong>Personalização NFC</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>PRODUTO REAL • NFC</small><h3>Google e Instagram a um toque.</h3><p>Plaquinhas NFC para aproximar o cliente dos canais digitais do negócio.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Pedir NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+          </div>
+        </article>
+      </div>
+      {% if drive_preview_enabled %}<p class="portfolio-clarity">Vídeos originais disponibilizados no Google Drive exclusivamente para revisão. Dependendo das permissões, a reprodução pode pedir login. Para lançamento, os MP4 otimizados serão hospedados no próprio site.</p>{% endif %}
     </section>
 
     <section class="section wrap testimonials" id="depoimentos" aria-labelledby="testimonial-title">
-      <div class="section-head reveal"><div><span class="eyebrow">05 / CONFIANÇA</span><h2 id="testimonial-title">Quem recebe,<br><em>percebe o cuidado.</em></h2></div><p>Trechos de retornos reais sobre serviços de fotos, já presentes na vitrine anterior da G Tech.</p></div>
-      <div class="testimonial-grid">{% for item in feedbacks %}<blockquote class="testimonial-card reveal"><span class="quote-mark">“</span><p>{{ item.quote }}</p><footer>{{ item.context }}</footer></blockquote>{% endfor %}</div>
+      <div class="section-head reveal"><div><span class="eyebrow">04 / FEEDBACKS REAIS</span><h2 id="testimonial-title">Quem confia na G Tech<br><em>tem voz.</em></h2></div><p>Recortes reais de mensagens de clientes, preservados do site anterior. Sem avaliações inventadas ou números fabricados.</p></div>
+      <div class="testimonial-grid">
+        {% for item in feedbacks %}
+        <article class="review-card reveal">
+          <a class="review-proof" href="{{ url_for('static',filename='assets/' ~ item.image) }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem original do feedback {{ loop.index }}">
+            <img src="{{ url_for('static',filename='assets/' ~ item.image) }}" loading="lazy" width="785" height="635" alt="Captura de conversa de cliente elogiando a entrega da G Tech, com dados pessoais de identificação omitidos">
+            <span>Ampliar mensagem original <span aria-hidden="true">↗</span></span>
+          </a>
+          <div class="review-quote"><span class="quote-mark" aria-hidden="true">“</span><blockquote>{{ item.quote }}</blockquote><p>{{ item.context }}</p></div>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="review-cta reveal"><span>Conheça o trabalho. Converse com quem entrega.</span><a class="pill-cta" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Falar com a G Tech ↗</a></div>
+    </section>
+
+    <section id="como-funciona" class="section process-section" aria-labelledby="process-title">
+      <div class="wrap"><div class="section-head reveal"><div><span class="eyebrow">05 / PROCESSO</span><h2 id="process-title">Do primeiro contato<br><em>à entrega.</em></h2></div><p>Um processo transparente, com acompanhamento e aprovação antes das etapas que geram cobrança.</p></div><div class="process-grid"><article class="reveal"><span>01</span><h3>Converse</h3><p>Conte qual desafio seu negócio precisa resolver.</p></article><article class="reveal"><span>02</span><h3>Receba a proposta</h3><p>Alinhamos o escopo, o prazo e as condições.</p></article><article class="reveal"><span>03</span><h3>Aprove</h3><p>Você confirma o projeto e as condições antes do início.</p></article><article class="reveal"><span>04</span><h3>Receba</h3><p>Entregamos o que foi contratado e orientamos a utilização.</p></article></div></div>
     </section>
 
     <section id="contato" class="section contact-section" aria-labelledby="contact-title">
