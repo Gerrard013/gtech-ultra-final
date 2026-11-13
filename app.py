@@ -275,7 +275,11 @@ def sync_lead_to_crm(lead: Lead, city: str) -> None:
         "sector": "Site oficial G Tech",
         "product": product,
         "quantity": 1,
-        "start": "agora" if lead.prazo == "O mais rápido possível" else "pesquisando",
+        "start": (
+            "agora" if lead.prazo == "O mais rápido possível"
+            else "30_dias" if lead.prazo in ("Em até 7 dias", "Em até 30 dias")
+            else "pesquisando"
+        ),
         "details": (
             "Origem: site oficial. "
             "Serviço original: " + lead.servico + ". "
