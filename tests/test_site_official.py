@@ -14,13 +14,15 @@ os.environ["ADMIN_USER"] = "ci-admin"
 os.environ["ADMIN_PASS"] = "ci-password-for-tests-only"
 os.environ["CRM_LEAD_SYNC_ENABLED"] = "false"
 
-from app import app, db, Lead, SERVICES
+from app import app, db, Lead, SERVICES, _lead_attempts, _lead_attempts_lock, normalize_mobile
 
 
 class OfficialSiteTests(unittest.TestCase):
     def setUp(self):
         assert "sqlite" in app.config["SQLALCHEMY_DATABASE_URI"]
         app.config["TESTING"] = True
+        with _lead_attempts_lock:
+            _lead_attempts.clear()
         with app.app_context():
             db.session.remove()
             db.drop_all()
@@ -40,7 +42,7 @@ class OfficialSiteTests(unittest.TestCase):
         return {
             "csrf_token": csrf if csrf is not None else self.csrf(),
             "nome": "Cliente Exemplo",
-            "whatsapp": "(91) 99999-1234",
+            "whatsapp": "(91) 98273-6418",
             "negocio": "Loja de testes",
             "cidade": "Belém",
             "servico": "Placa NFC Personalizada",
@@ -70,6 +72,7 @@ class OfficialSiteTests(unittest.TestCase):
         with app.app_context():
             saved = Lead.query.one()
             self.assertEqual(saved.servico, "Placa NFC Personalizada")
+            self.assertEqual(saved.whatsapp, "91982736418")
             self.assertEqual(saved.status, "novo")
             self.assertEqual(saved.origem, "site_oficial_v2|instagram")
             self.assertIn("Cidade: Belém", saved.mensagem)
@@ -81,6 +84,29 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
+
+    def test_rejects_obviously_generic_or_invalid_brazilian_numbers(self):
+        self.assertEqual(normalize_mobile("+55 (91) 98273-6418"), "91982736418")
+        for number in ["(91) 99999-9999", "(91) 91234-5678", "(00) 98273-6418",
+                       "(91) 11111-1111", "1198765432", "00000000000",
+                       "91900000000", "+55 91 99999-9999"]:
+            self.assertIsNone(normalize_mobile(number), number)
+            payload = self.lead_data()
+            payload["whatsapp"] = number
+            response = self.client.post("/lead", data=payload)
+            self.assertEqual(response.status_code, 302, number)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
+
+    def test_rate_limit_responds_without_storing_sixth_lead(self):
+        payload = self.lead_data()
+        for _ in range(5):
+            response=self.client.post("/lead",data=payload)
+            self.assertEqual(response.status_code,302)
+        result=self.client.post("/lead",data=payload)
+        self.assertEqual(result.status_code,429)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(),5)
 
     def test_rejects_missing_consent(self):
         data = self.lead_data()
@@ -123,7 +149,9 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(page.status_code, 200)
             self.assertEqual(page.headers.get("X-Robots-Tag"), "noindex, nofollow, noarchive")
             self.assertIn(b'noindex,nofollow', page.data)
-            self.assertIn(b'drive.google.com', page.data)
+            self.assertNotIn(b'drive.google.com', page.data)
+            self.assertIn(b'belem-studio-nfc.mp4', page.data)
+            self.assertIn(b'cookie-notice', page.data)
             payload = self.lead_data()
             blocked = self.client.post("/lead", data=payload)
             self.assertEqual(blocked.status_code, 403)
