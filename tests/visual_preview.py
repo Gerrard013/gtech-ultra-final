@@ -18,7 +18,7 @@ os.environ["ADMIN_PASS"] = "local-only-no-remote-access"
 os.environ["CRM_LEAD_SYNC_ENABLED"] = "false"
 os.environ["FLASK_DEBUG"] = "0"
 os.environ["PORT"] = "5073"
-# Enable the preview-only iframe gallery, but block all external requests in the browser.
+# Test the preview in isolation. External tracking and Drive media must not be required.
 os.environ["RAILWAY_ENVIRONMENT"] = "preview"
 server = subprocess.Popen(
     ["python", "app.py"], cwd=ROOT, env=os.environ.copy(),
@@ -59,8 +59,15 @@ try:
             page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
             assert page.locator("#solucoes .service-card").count()==6, "Six offers not present"
-            assert page.locator("#projetos .video-teaser").count()==3, "Real portfolio video play controls missing"
-            assert page.locator(".hero .video-teaser").count()==1, "Real NFC showcase missing in hero"
+            assert page.locator("#projetos video").count()==4, "Four locally hosted project videos required"
+            assert page.locator(".hero video#showcase-video").count()==1, "Belém Studio must feature in hero"
+            assert page.locator("#video-belem-studio video source").get_attribute("src").endswith("/static/media/belem-studio-nfc.mp4")
+            assert page.locator("iframe").count()==0, "External player must never be required"
+            assert page.locator("fieldset.briefing-fields").is_disabled(), "Preview must not collect live personal data"
+            assert page.locator("#cookie-notice").is_visible(), "Cookie consent choice missing"
+            page.screenshot(path=str(DEST/f"{label}_cookies.png"))
+            page.locator('[data-cookie-choice="essential"]').click()
+            assert page.locator("#cookie-notice").is_hidden(), "Cookie consent was not dismissed"
             assert page.locator("#depoimentos .review-proof img").count()==2, "Two real feedback screenshots missing"
             assert page.locator(".intro-logo").count()==0, "Intro should be removed after skip"
             assert "🍔" not in page.locator("#projetos").inner_text(), "Generic burger mockup still present"
@@ -71,12 +78,19 @@ try:
             # Make all below-the-fold content visible in full-page screenshot, BEFORE replacing a teaser with a blocked iframe.
             page.evaluate("document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'))")
             page.screenshot(path=str(DEST/f"{label}_full.png"),full_page=True,animations="disabled",timeout=30000)
-            page.locator("#projetos .video-teaser .teaser-play").first.click()
-            assert page.locator("#projetos iframe.real-video-frame").count()==1, "Click failed to open original Drive video"
+            mp4=page.request.get("http://127.0.0.1:5073/static/media/belem-studio-nfc.mp4")
+            assert mp4.ok and "video/mp4" in mp4.headers.get("content-type",""), "Belém Studio video not playable from own server"
+            assert mp4.body()[:4] != b"html", "MP4 endpoint served HTML instead of video"
+            page.reload(wait_until="domcontentloaded")
+            page.wait_for_timeout(500)
+            assert page.locator(".gtech-intro").count()==1, "Opening must run again after refreshing"
+            page.evaluate("document.querySelector('#gtech-intro-skip')?.click()")
+            page.wait_for_timeout(700)
+            assert page.locator("#cookie-notice").is_hidden(), "Cookie preference not respected after refresh"
             overflow=page.evaluate("document.documentElement.scrollWidth-window.innerWidth")
             assert overflow<=3, f"Horizontal scroll overflow of {overflow}px on {label}"
             assert not errors, "Page JS errors: "+"; ".join(errors)
-            print(f"PASS {label}: 6 services, 3 previews, intro, no overflow, no JS exceptions")
+            print(f"PASS {label}: 6 services, 4 self-hosted videos, cookies, repeatable intro, no overflow")
             page.close()
         browser.close()
 finally:
