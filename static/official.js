@@ -69,77 +69,87 @@
     origin.value = (labels.length ? "site_oficial_v2|" + labels.join("|") : "site_oficial_v2").slice(0, 180);
   }
 
+  // The format checker reduces test numbers and typos. It does NOT verify ownership.
   const form = document.getElementById("quote-form");
   const phone = form?.querySelector('input[name="whatsapp"]');
-  phone?.addEventListener("input", () => {
-    const digits = phone.value.replace(/\D/g, "");
-    if (digits.length > 13) phone.value = digits.slice(0, 13);
+  const allowedDDD = new Set([11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,
+    41,42,43,44,45,46,47,48,49,51,53,54,55,61,62,63,64,65,66,67,68,69,71,73,74,75,77,79,
+    81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99]);
+  const normalizePhone = (value) => {
+    let d=String(value || "").replace(/\D/g,"");
+    if (d.length===13 && d.startsWith("55")) d=d.slice(2);
+    if (d.length!==11 || !allowedDDD.has(Number(d.slice(0,2))) || d[2]!=="9") return null;
+    const sub=d.slice(2);
+    if (new Set(sub).size<3 || /^(\d)\1{7}$/.test(sub.slice(1))) return null;
+    if (["12345678","87654321","00000000","99999999"].includes(sub.slice(1))) return null;
+    return d;
+  };
+  phone?.addEventListener("input",()=>{
+    phone.setCustomValidity("");
+    if (phone.value.replace(/\D/g,"").length>13) phone.value=phone.value.slice(0,20);
   });
-  form?.addEventListener("submit", event => {
-    if (!form.checkValidity()) return;
-    const digits = (phone?.value || "").replace(/\D/g, "");
-    const normalized = digits.startsWith("55") && digits.length >= 12 ? digits.slice(2) : digits;
-    if (!/^\d{10,11}$/.test(normalized)) {
+  form?.addEventListener("submit",event=>{
+    const p=phone ? normalizePhone(phone.value) : null;
+    if (!p && phone){
       event.preventDefault();
-      phone.setCustomValidity("Digite um número com DDD, por exemplo (91) 99999-9999.");
+      phone.setCustomValidity("Digite seu celular brasileiro verdadeiro com DDD e nono dígito. Números de exemplo não são aceitos.");
       phone.reportValidity();
       return;
     }
-    const button = form.querySelector(".form-submit");
-    if (button) {
-      button.disabled = true;
-      button.textContent = "Enviando solicitação...";
-    }
+    if (!form.reportValidity()) { event.preventDefault(); return; }
+    const submit=form.querySelector(".form-submit");
+    if (submit) { submit.disabled=true;submit.textContent="Enviando sua solicitação..."; }
   });
-  phone?.addEventListener("input", () => phone.setCustomValidity(""));
 
-  const video = document.getElementById("showcase-video");
-  const toggle = document.getElementById("video-toggle");
+  const video=document.getElementById("showcase-video");
+  const toggle=document.getElementById("video-toggle");
+  const sound=document.getElementById("showcase-sound");
   if (video) {
     if (reduced.matches) video.pause();
-    toggle?.addEventListener("click", () => {
-      if (video.paused) {
-        video.play().then(() => {
-          toggle.textContent = "Pausar animação";
-          toggle.setAttribute("aria-label", "Pausar vídeo");
-        }).catch(() => {});
-      } else {
-        video.pause();
-        toggle.textContent = "Reproduzir animação";
-        toggle.setAttribute("aria-label", "Reproduzir vídeo");
-      }
+    toggle?.addEventListener("click",()=>{
+      if(video.paused)video.play().then(()=>{toggle.textContent="Pausar vídeo";}).catch(()=>{});
+      else {video.pause();toggle.textContent="Reproduzir vídeo";}
+    });
+    sound?.addEventListener("click",()=>{
+      video.muted=false;
+      video.loop=false;
+      video.currentTime=0;
+      video.play().then(()=>{sound.textContent="Som ativado";sound.disabled=true;})
+        .catch(()=>{sound.textContent="Use o controle de reprodução";});
     });
   }
 
-  // Atomic G TECH cinematic logo opening. Canvas renders real particles, no external animation service.
-  // Load third-party Drive players on explicit interaction only.
-  // Public production will use local MP4 files after media approval.
-  document.querySelectorAll(".video-teaser").forEach(teaser => {
-    const button=teaser.querySelector(".teaser-play");
-    button?.addEventListener("click",() => {
-      const url=teaser.getAttribute("data-video-src") || "";
-      if(!/^https:\/\/drive\.google\.com\/file\/d\/[A-Za-z0-9_-]+\/preview$/.test(url)) return;
-      const frame=document.createElement("iframe");
-      frame.src=url;
-      frame.title=teaser.getAttribute("data-video-title") || "Demonstração real da G Tech";
-      frame.allow="autoplay; fullscreen";
-      frame.allowFullscreen=true;
-      frame.referrerPolicy="no-referrer";
-      frame.loading="eager";
-      frame.className="real-video-frame";
-      const holder=teaser.parentElement;
-      if(holder) { holder.classList.add("is-playing"); teaser.replaceWith(frame); }
-    });
-  });
+  // Cookies: a short, accessible preference notice.
+  // No analytics/tracking is injected at all. Only the CSRF session cookie is essential.
+  const cookieNotice=document.getElementById("cookie-notice");
+  const cookieSettings=document.getElementById("cookie-settings");
+  const cookieKey="gtech_cookie_preference_v1";
+  const hasCookieChoice=()=>{
+    try {
+      const saved=JSON.parse(localStorage.getItem(cookieKey)||"null");
+      return !!(saved&&["essential","all"].includes(saved.choice)&&
+               Number.isFinite(saved.at)&&Date.now()-saved.at<180*86400000);
+    } catch (_) {return false;}
+  };
+  const showCookieNotice=()=>{if(cookieNotice) cookieNotice.hidden=false;};
+  const hideCookieNotice=()=>{if(cookieNotice) cookieNotice.hidden=true;};
+  if (!hasCookieChoice()) showCookieNotice();
+  cookieNotice?.querySelectorAll("[data-cookie-choice]").forEach(button=>
+    button.addEventListener("click",()=>{
+      const choice=button.getAttribute("data-cookie-choice");
+      if(!["essential","all"].includes(choice))return;
+      try{localStorage.setItem(cookieKey,JSON.stringify({choice,at:Date.now()}));}catch(_){}
+      hideCookieNotice();
+    }));
+  cookieSettings?.addEventListener("click",showCookieNotice);
 
+  // Original G Tech shield and lettering break apart into atomic particles.
   const introTemplate = document.getElementById("gtech-intro-template");
   const replay = document.getElementById("gtech-intro-replay");
   let activeIntro = null;
   const introDuration = 3400;
   function playGtechIntro(force = false) {
-    if (reduced.matches || !introTemplate || activeIntro) return;
-    try { if (!force && sessionStorage.getItem("gtech_intro_seen_v2")) return; }
-    catch (_) { /* storage blocked: opening remains skippable */ }
+    if (!introTemplate || activeIntro) return;
     const overlay = introTemplate.content.firstElementChild.cloneNode(true);
     document.body.appendChild(overlay);
     activeIntro = overlay;
@@ -214,7 +224,7 @@
     window.addEventListener("keydown",onKey);
     function dismiss(){
       if(stopped)return;stopped=true;
-      try{sessionStorage.setItem("gtech_intro_seen_v2","yes");}catch(_){}
+      // Do not remember the intro: run it at the start of each new page load.
       window.cancelAnimationFrame(raf);
       window.removeEventListener("keydown",onKey);
       window.removeEventListener("resize",onResize);
@@ -223,6 +233,7 @@
       window.setTimeout(()=>{overlay.remove();activeIntro=null;previousFocus?.focus?.({preventScroll:true});},650);
     }
     skip.addEventListener("click",dismiss,{once:true});
+    if (reduced.matches) {window.setTimeout(dismiss,1050);return;}
     const smoothstep=(a,b,x)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t);};
     const draw=(now)=>{
       if(stopped)return;
