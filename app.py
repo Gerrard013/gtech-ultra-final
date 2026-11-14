@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import logging
 import os
 import re
 import secrets
+import threading
+import time
+import urllib.request
 from datetime import datetime
+from collections import defaultdict, deque
 from functools import wraps
 from urllib.parse import quote
 
@@ -17,6 +23,7 @@ from flask import (
     redirect,
     render_template,
     request,
+    session,
     send_from_directory,
     url_for,
 )
@@ -49,6 +56,7 @@ app.config.update(
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=1800,
 )
 
 if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("FLASK_ENV") == "production":
@@ -110,52 +118,40 @@ CONTACTS = {
 
 SERVICES = [
     {
-        "id": "cardapio",
-        "number": "01",
-        "title": "Cardápio Digital Premium",
-        "form_value": "Cardápio Digital Premium",
-        "description": (
-            "Uma vitrine mobile para apresentar produtos, promoções e receber pedidos "
-            "com muito mais clareza."
-        ),
-        "benefits": ["QR Code", "WhatsApp integrado", "Categorias e promoções"],
-        "icon": "menu",
+        "id": "nfc", "title": "Placa NFC Personalizada",
+        "form_value": "Placa NFC Personalizada", "symbol": "⌁",
+        "category": "PRODUTO FÍSICO + DIGITAL", "price": "R$ 79,99",
+        "description": "Um toque para abrir perfis, contatos e experiências digitais. Inclui configuração; a entrega segue condições combinadas."
     },
     {
-        "id": "site",
-        "number": "02",
-        "title": "Landing Page & Site",
-        "form_value": "Landing Page ou Site",
-        "description": (
-            "Presença digital de alto padrão para transformar visitas em conversas, "
-            "orçamentos e oportunidades."
-        ),
-        "benefits": ["Mobile-first", "SEO básico", "Captura de leads"],
-        "icon": "rocket",
+        "id": "site", "title": "Sites Profissionais",
+        "form_value": "Site Profissional", "symbol": "◉",
+        "category": "PRESENÇA DIGITAL", "price": "A partir de R$ 500",
+        "description": "Sua empresa com uma vitrine clara, responsiva e pronta para receber contatos. Manutenção contratada separadamente."
     },
     {
-        "id": "automacao",
-        "number": "03",
-        "title": "Automação & Sistemas",
-        "form_value": "Automação ou Sistema",
-        "description": (
-            "Soluções sob medida para reduzir tarefas repetitivas, organizar informações "
-            "e ganhar produtividade."
-        ),
-        "benefits": ["Fluxos personalizados", "Painéis", "Banco de dados"],
-        "icon": "settings",
+        "id": "google", "title": "Perfil da Empresa no Google",
+        "form_value": "Perfil da Empresa no Google", "symbol": "⌖",
+        "category": "PRESENÇA LOCAL", "price": "R$ 150",
+        "description": "Revisão e organização de informações do perfil empresarial, quando elegível. Serviço independente do Google."
     },
     {
-        "id": "fotos",
-        "number": "04",
-        "title": "Fotos & Restauração",
-        "form_value": "Fotos ou Restauração",
-        "description": (
-            "Restauração fiel, melhoria de qualidade e apresentação visual profissional "
-            "para memórias e marcas."
-        ),
-        "benefits": ["Restauração fiel", "Melhoria visual", "Artes digitais"],
-        "icon": "image",
+        "id": "cardapio", "title": "Cardápios Digitais Premium",
+        "form_value": "Cardápio Digital Premium", "symbol": "▦",
+        "category": "RESTAURANTES E DELIVERY", "price": "Sob orçamento",
+        "description": "Cardápio interativo pensado para celular, com produtos, categorias, QR Code e caminho simples para pedidos."
+    },
+    {
+        "id": "foto", "title": "Restauração de Fotografias",
+        "form_value": "Fotos ou Restauração", "symbol": "▧",
+        "category": "IMAGEM E MEMÓRIA", "price": "A partir de R$ 10",
+        "description": "Recuperação cuidadosa de fotos antigas, preservando características e respeitando a imagem original."
+    },
+    {
+        "id": "automacao", "title": "Automações & Soluções",
+        "form_value": "Automação ou Sistema", "symbol": "◇",
+        "category": "TECNOLOGIA PARA EMPRESAS", "price": "Sob análise",
+        "description": "Organização de processos e projetos digitais sob medida, sujeitos a análise de escopo e enquadramento do serviço."
     },
 ]
 
@@ -189,15 +185,32 @@ def set_security_headers(response: Response) -> Response:
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains" if request.is_secure else "")
+    if not request.is_secure:
+        response.headers.pop("Strict-Transport-Security", None)
+    response.headers.setdefault("Content-Security-Policy", (
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
+        "form-action 'self'; script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src 'none'"
+    ))
     response.headers.setdefault(
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )
+    if request.path.startswith("/admin") or request.path == "/obrigado":
+        response.headers["Cache-Control"] = "no-store, private"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
     return response
 
 
 def check_auth(username: str, password: str) -> bool:
-    expected_user = os.getenv("ADMIN_USER", "gtech")
-    expected_pass = os.getenv("ADMIN_PASS", "gtech123")
+    expected_user = os.getenv("ADMIN_USER") or ""
+    expected_pass = os.getenv("ADMIN_PASS") or ""
+    if not (expected_user and expected_pass):
+        return False
     return secrets.compare_digest(username, expected_user) and secrets.compare_digest(
         password, expected_pass
     )
@@ -222,76 +235,225 @@ def clean_text(value: str | None, max_length: int) -> str:
     return (value or "").strip()[:max_length]
 
 
+# Brazilian geographic area codes, following actual NANP-like national numbering groups.
+BR_DDDS = {11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,
+           41,42,43,44,45,46,47,48,49,51,53,54,55,61,62,63,64,65,66,67,68,69,
+           71,73,74,75,77,79,81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99}
+
+
+def normalize_mobile(value: str) -> str | None:
+    """Brazilian mobile syntax, not proof that a WhatsApp account exists."""
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("55") and len(digits) == 13:
+        digits = digits[2:]
+    if len(digits) != 11 or int(digits[:2]) not in BR_DDDS or digits[2] != "9":
+        return None
+    subscriber = digits[2:]
+    # Obvious dummy/test patterns; don't pretend to verify number ownership.
+    if len(set(subscriber)) < 3:
+        return None
+    tail = subscriber[1:]
+    if tail in ("12345678", "87654321", "00000000", "11111111", "22222222",
+                "33333333", "44444444", "55555555", "66666666", "77777777",
+                "88888888", "99999999"):
+        return None
+    return digits
+
+
 def valid_phone(value: str) -> bool:
-    digits = re.sub(r"\D", "", value)
-    return 10 <= len(digits) <= 13
+    return normalize_mobile(value) is not None
+
+
+# Lightweight single-process protection. Needs a shared Redis/WAF limit before
+# production-scale traffic across multiple replicas.
+_lead_attempts: dict[str, deque[float]] = defaultdict(deque)
+_lead_attempts_lock = threading.Lock()
+
+
+def excessive_lead_submissions(ip: str) -> bool:
+    now = time.monotonic()
+    with _lead_attempts_lock:
+        if len(_lead_attempts) > 2000:
+            # Bound memory in long-running single-process instances.
+            for key in list(_lead_attempts)[:500]:
+                if not _lead_attempts[key] or now - _lead_attempts[key][-1] > 600:
+                    _lead_attempts.pop(key, None)
+        events = _lead_attempts[ip]
+        while events and now - events[0] > 600:
+            events.popleft()
+        if len(events) >= 5:
+            return True
+        events.append(now)
+        return False
 
 
 @app.route("/")
 def index():
+    if "lead_csrf" not in session:
+        session["lead_csrf"] = secrets.token_urlsafe(32)
     return render_template(
         "index.html",
         contacts=CONTACTS,
         services=SERVICES,
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
+        csrf_token=session["lead_csrf"],
+        belem_video_available=os.path.isfile(os.path.join(BASE_DIR, "static", "media", "belem-studio-nfc.mp4")),
+        nfc_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "hero-nfc.mp4")
+        ),
+        cardapio_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "cardapio-demo.mp4")
+        ),
+        nfc_demo_video_available=os.path.isfile(
+            os.path.join(BASE_DIR, "static", "media", "nfc-demo.mp4")
+        ),
+        drive_preview_enabled=os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
     )
+
+
+def sync_lead_to_crm(lead: Lead, city: str) -> None:
+    """Optional best-effort hand-off; local database is the source of recovery."""
+    if os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() != "true":
+        return
+    endpoint = os.getenv("CRM_LEAD_CAPTURE_URL", "").strip()
+    # Never send customer data to an unverified or unexpected destination.
+    expected = "https://web-production-846ce.up.railway.app/api/public/lead"
+    if endpoint != expected:
+        logging.warning("G Tech lead sync skipped: CRM endpoint not approved")
+        return
+    mapping = {
+        "Placa NFC Personalizada": "nfc",
+        "Site Profissional": "site",
+        "Perfil da Empresa no Google": "google",
+        "Cardápio Digital Premium": "site",
+        "Fotos ou Restauração": "foto",
+    }
+    product = mapping.get(lead.servico)
+    if not product:
+        logging.info("G Tech lead kept locally: service not mapped to CRM")
+        return
+    number = re.sub(r"\D", "", lead.whatsapp)
+    if not number.startswith("55"):
+        number = "55" + number
+    body = {
+        "name": lead.nome,
+        "company": lead.negocio,
+        "phone": number,
+        "city": city or "Não informado",
+        "sector": "Site oficial G Tech",
+        "product": product,
+        "quantity": 1,
+        "start": (
+            "agora" if lead.prazo == "O mais rápido possível"
+            else "30_dias" if lead.prazo in ("Em até 7 dias", "Em até 30 dias")
+            else "pesquisando"
+        ),
+        "details": (
+            "Origem: site oficial. "
+            "Serviço original: " + lead.servico + ". "
+            "Necessidade: " + lead.objetivo[:550] + ". "
+            "ID interno: " + str(lead.id) + ". "
+            "Nenhum pagamento foi confirmado."
+        )[:900],
+        "consent": True,
+        "website": "",
+    }
+    try:
+        req = urllib.request.Request(
+            endpoint,
+            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=4) as response:
+            logging.info("G Tech CRM lead sync: HTTP %s", response.status)
+    except Exception:
+        logging.warning("G Tech CRM lead sync failed; original lead saved locally")
 
 
 @app.post("/lead")
 def create_lead():
+    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
+        # Preview has disposable storage; do not accept live personal information.
+        abort(403)
+    token = request.form.get("csrf_token", "")
+    expected_token = session.get("lead_csrf", "")
+    if not token or not expected_token or not secrets.compare_digest(token, expected_token):
+        abort(400)
     if request.form.get("website"):
         abort(400)
+    if excessive_lead_submissions(request.remote_addr or "unknown"):
+        return Response("Muitas tentativas. Aguarde alguns minutos antes de enviar novamente.", status=429)
+    if request.form.get("consentimento") != "yes":
+        flash("É necessário autorizar o uso dos dados para responder ao orçamento.", "error")
+        return redirect(url_for("index") + "#contato")
 
     nome = clean_text(request.form.get("nome"), 120)
     whatsapp = clean_text(request.form.get("whatsapp"), 40)
-    negocio = clean_text(request.form.get("negocio"), 180)
+    negocio = clean_text(request.form.get("negocio"), 180) or "Cliente interessado"
     servico = clean_text(request.form.get("servico"), 120)
-    prazo = clean_text(request.form.get("prazo"), 120)
+    prazo = clean_text(request.form.get("prazo"), 120) or "Estou pesquisando"
     objetivo = clean_text(request.form.get("objetivo"), 2000)
     mensagem = clean_text(request.form.get("mensagem"), 2000)
     origem = clean_text(request.form.get("origem"), 180)
+    cidade = clean_text(request.form.get("cidade"), 100)
 
-    required = [nome, whatsapp, negocio, servico, prazo, objetivo]
-    if not all(required):
+    required = [nome, whatsapp, servico, objetivo]
+    if len(nome) < 2 or len(objetivo) < 10:
+        flash("Informe seu nome e descreva brevemente sua necessidade.", "error")
+        return redirect(url_for("index") + "#contato")
+    allowed_services = {item["form_value"] for item in SERVICES} | {"Outro serviço"}
+    allowed_deadlines = {
+        "O mais rápido possível", "Em até 7 dias", "Em até 30 dias", "Estou pesquisando"
+    }
+    if not all(required) or servico not in allowed_services or prazo not in allowed_deadlines:
         flash("Revise os campos obrigatórios antes de enviar.", "error")
-        return redirect(url_for("index") + "#diagnostico")
+        return redirect(url_for("index") + "#contato")
 
     if not valid_phone(whatsapp):
-        flash("Digite um WhatsApp válido com DDD.", "error")
-        return redirect(url_for("index") + "#diagnostico")
+        flash("Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo.", "error")
+        return redirect(url_for("index") + "#contato")
 
     lead = Lead(
         nome=nome,
-        whatsapp=whatsapp,
+        whatsapp=normalize_mobile(whatsapp) or whatsapp,
         negocio=negocio,
         servico=servico,
         prazo=prazo,
         objetivo=objetivo,
-        mensagem=mensagem,
+        mensagem=(("Cidade: " + cidade + "\n") if cidade else "") + mensagem,
         origem=origem,
     )
     db.session.add(lead)
     db.session.commit()
+    # Do not fail the customer journey when the CRM integration is unavailable.
+    sync_lead_to_crm(lead, cidade)
+    return redirect(url_for("thanks"))
 
-    return redirect(url_for("thanks", lead_id=lead.id))
 
 
 @app.route("/obrigado")
 def thanks():
-    lead_id = request.args.get("lead_id", type=int)
-    lead = db.session.get(Lead, lead_id) if lead_id else None
+    # Do not expose names or other lead details through guessable URL IDs.
     return render_template(
         "thanks.html",
         contacts=CONTACTS,
-        lead=lead,
+        lead=None,
         year=datetime.utcnow().year,
     )
+
+
+@app.route("/privacidade")
+def privacy_policy():
+    return render_template("privacidade.html", contacts=CONTACTS, year=datetime.utcnow().year)
 
 
 @app.route("/admin/leads")
 @requires_auth
 def admin_leads():
+    if "admin_csrf" not in session:
+        session["admin_csrf"] = secrets.token_urlsafe(32)
     query_text = clean_text(request.args.get("q"), 120)
     selected_status = clean_text(request.args.get("status"), 40)
 
@@ -325,12 +487,17 @@ def admin_leads():
         selected_status=selected_status,
         query_text=query_text,
         year=datetime.utcnow().year,
+        admin_csrf=session["admin_csrf"],
     )
 
 
 @app.post("/admin/leads/<int:lead_id>/status")
 @requires_auth
 def update_lead_status(lead_id: int):
+    token = request.form.get("admin_csrf", "")
+    expected = session.get("admin_csrf", "")
+    if not token or not expected or not secrets.compare_digest(token, expected):
+        abort(400)
     lead = db.get_or_404(Lead, lead_id)
     new_status = clean_text(request.form.get("status"), 40)
     if new_status not in STATUS_LABELS:
@@ -392,9 +559,22 @@ def robots():
     return send_from_directory(app.static_folder, "robots.txt")
 
 
+@app.route("/sitemap.xml")
+def sitemap():
+    base = "https://gtech-ultra-final-production.up.railway.app"
+    content = (
+        '<?xml version="1.0" encoding="UTF-8"?>'
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+        f"<url><loc>{base}/</loc></url>"
+        f"<url><loc>{base}/privacidade</loc></url>"
+        "</urlset>"
+    )
+    return Response(content, mimetype="application/xml")
+
+
 @app.route("/health")
 def health():
-    return {"status": "ok"}, 200
+    return {"status": "ok", "service": "gtech-site-oficial"}, 200
 
 
 @app.errorhandler(404)

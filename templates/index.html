@@ -3,315 +3,252 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#050914">
-  <meta name="description" content="G Tech: cardápios digitais, sites, automação, sistemas e restauração de fotos com experiência premium e foco em resultado.">
-  <meta property="og:title" content="G Tech | Experiências digitais premium">
-  <meta property="og:description" content="Soluções digitais modernas para apresentar melhor, atender rápido e vender mais.">
+  <meta name="theme-color" content="#060b16">
+  <meta name="description" content="G Tech em Belém, Pará: plaquinhas NFC personalizadas, sites profissionais, cardápios digitais e organização do Perfil da Empresa no Google. Orçamento pelo WhatsApp.">
+  <meta name="robots" content="{% if drive_preview_enabled %}noindex,nofollow{% else %}index,follow,max-image-preview:large{% endif %}">
+  <link rel="canonical" href="https://gtech-ultra-final-production.up.railway.app/">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
-  <meta property="og:image" content="{{ url_for('static', filename='assets/og-gtech.jpg', _external=True) }}">
-  <title>G Tech | Experiências digitais premium</title>
-  <link rel="icon" type="image/png" href="{{ url_for('static', filename='assets/favicon.png') }}">
-  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <meta property="og:site_name" content="G Tech | Innovation &amp; Solutions">
+  <meta property="og:title" content="G Tech | Sites, NFC e soluções digitais">
+  <meta property="og:description" content="Tecnologia real para destacar o seu negócio. Conheça projetos e peça um orçamento com a G Tech.">
+  <meta property="og:url" content="https://gtech-ultra-final-production.up.railway.app/">
+  <meta property="og:image" content="{{ url_for('static',filename='assets/og-gtech.jpg',_external=True) }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="color-scheme" content="dark">
+  <title>G Tech Belém | Plaquinhas NFC, Sites e Google Maps</title>
+  <link rel="icon" href="{{ url_for('static',filename='assets/favicon.png') }}" type="image/png">
+  <link rel="preload" as="image" href="{{ url_for('static',filename='assets/gtech-logo.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='official.css') }}">
+  <script defer src="{{ url_for('static', filename='official.js') }}"></script>
+  <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"https://gtech-ultra-final-production.up.railway.app/","logo":"https://gtech-ultra-final-production.up.railway.app/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
 <body>
-  <a class="skip-link" href="#conteudo">Pular para o conteúdo</a>
-  <div class="cursor-glow" aria-hidden="true"></div>
-  <div class="noise" aria-hidden="true"></div>
-  <div class="scroll-progress" aria-hidden="true"><span></span></div>
-
-  <header class="site-header" id="topo">
-    <div class="header-shell glass">
-      <a class="brand magnetic" href="#inicio" aria-label="G Tech — início">
-        <span class="brand-mark"><img src="{{ url_for('static', filename='assets/gtech-logo.png') }}" alt=""></span>
-        <span class="brand-copy"><strong>G Tech</strong><small>Innovation &amp; Solutions</small></span>
-      </a>
-
-      <nav class="desktop-nav" aria-label="Navegação principal">
-        <a href="#servicos">Serviços</a>
-        <a href="#resultados">Resultados</a>
-        <a href="#processo">Como funciona</a>
-        <a href="#diagnostico">Diagnóstico</a>
-      </nav>
-
-      <div class="header-actions">
-        <a class="btn btn-compact btn-outline magnetic" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
-        <button class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="mobile-menu">
-          <span></span><span></span>
-        </button>
+  <template id="gtech-intro-template">
+    <div class="gtech-intro" role="dialog" aria-modal="true" aria-label="Abertura cinematográfica da G Tech">
+      <canvas id="gtech-intro-canvas" aria-hidden="true"></canvas>
+      <div class="intro-vignette" aria-hidden="true"></div>
+      <div class="intro-center">
+        <img class="intro-logo" id="gtech-intro-logo" src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="G Tech — escudo original, G, órbita e assinatura Innovation &amp; Solutions">
       </div>
+      <div class="intro-progress"><span id="gtech-intro-progress"></span></div>
+      <button class="intro-skip" type="button" id="gtech-intro-skip">Pular abertura <span aria-hidden="true">→</span></button>
+      <div class="intro-coordinate" aria-hidden="true">G TECH / THE FUTURE IS NOW</div>
     </div>
-
-    <div class="mobile-menu glass" id="mobile-menu" hidden>
-      <a href="#servicos">Serviços</a>
-      <a href="#resultados">Resultados</a>
-      <a href="#processo">Como funciona</a>
-      <a href="#diagnostico">Diagnóstico</a>
-      <a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">Falar no WhatsApp</a>
+  </template>
+  <a class="skip" href="#conteudo">Ir ao conteúdo</a>
+  {% if drive_preview_enabled %}<div class="preview-banner" role="status">AMBIENTE DE PRÉVIA • Vídeos originais em revisão • Não envie dados pessoais nem realize pagamentos</div>{% endif %}
+  <div class="reading-line" aria-hidden="true"><span id="scroll-progress"></span></div>
+  <div class="grain" aria-hidden="true"></div>
+  <header class="topbar" id="topo">
+    <div class="topbar-inner">
+      <a href="#inicio" class="brand" aria-label="G Tech, início">
+        <span class="brand-icon"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" width="160" height="160" alt=""></span>
+        <span class="brand-type">G Tech <small>INNOVATION &amp; SOLUTIONS</small></span>
+      </a>
+      <nav class="main-nav" id="menu-links" aria-label="Menu principal">
+        <a href="#solucoes">Soluções</a>
+        <a href="#projetos">Projetos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#contato">Contato</a>
+      </nav>
+      <a href="#contato" class="header-cta">Pedir orçamento <span aria-hidden="true">↗</span></a>
+      <button class="menu-button" id="menu-button" aria-label="Abrir menu" aria-controls="menu-links" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
     </div>
   </header>
-
   <main id="conteudo">
-    <section class="hero section" id="inicio">
-      <div class="hero-copy">
-        <div class="eyebrow reveal"><span class="status-dot"></span> G TECH • EXPERIÊNCIA DIGITAL PREMIUM</div>
-        <h1 class="reveal">Seu negócio apresentado com o <em>valor que ele merece.</em></h1>
-        <p class="hero-lead reveal">Cardápios digitais, landing pages, automação, sistemas e restauração de fotos com navegação fluida, visual moderno e contato rápido em um clique.</p>
-
-        <div class="hero-actions reveal">
-          <a class="btn btn-primary magnetic" href="#diagnostico">Receber diagnóstico gratuito <span aria-hidden="true">→</span></a>
-          <a class="btn btn-secondary magnetic" href="#servicos">Ver soluções</a>
-        </div>
-
-        <div class="trust-line reveal" aria-label="Diferenciais da G Tech">
-          <span><b>✓</b> Atendimento direto</span>
-          <span><b>✓</b> Mobile-first</span>
-          <span><b>✓</b> Projeto sob medida</span>
-        </div>
-      </div>
-
-      <div class="hero-stage reveal" data-parallax-stage>
-        <div class="ambient-orb orb-one"></div>
-        <div class="ambient-orb orb-two"></div>
-        <div class="hero-device glass interactive-card" data-tilt data-tilt-strength="8">
-          <div class="device-head">
-            <span class="device-logo"><img src="{{ url_for('static', filename='assets/favicon.png') }}" alt=""></span>
-            <div><strong>G Tech</strong><small>Soluções para vender melhor</small></div>
-            <span class="online-pill">online</span>
+    <section class="hero" id="inicio" aria-labelledby="hero-title">
+      <div class="hero-aura" aria-hidden="true"></div>
+      <div class="hero-grid wrap">
+        <div class="hero-text">
+          <div class="micro-label"><span class="pulse"></span> G TECH • BELÉM / PARÁ • BRASIL</div>
+          <h1 id="hero-title">Sites, NFC e Google para <span class="glow-text">destacar sua empresa.</span></h1>
+          <p class="hero-lead">A G Tech cria sites profissionais, plaquinhas NFC personalizadas, cardápios digitais e soluções de presença online. Conheça projetos reais e fale diretamente com quem desenvolve.</p>
+          <div class="hero-buttons">
+            <a class="btn btn-solid" href="#solucoes">Ver serviços e preços <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-outline" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar no WhatsApp</a>
           </div>
-          <div class="device-hero">
-            <span>Experiência digital premium</span>
-            <h2>Clareza, tecnologia e resultado.</h2>
-          </div>
-          <div class="device-grid">
-            <button type="button" data-service-choice="Cardápio Digital Premium"><i>01</i><span>Cardápio QR</span></button>
-            <button type="button" data-service-choice="Landing Page ou Site"><i>02</i><span>Site & Landing</span></button>
-            <button type="button" data-service-choice="Automação ou Sistema"><i>03</i><span>Automação</span></button>
-            <button type="button" data-service-choice="Fotos ou Restauração"><i>04</i><span>Fotos</span></button>
-          </div>
-          <div class="device-cta">Começar projeto <span>↗</span></div>
+          <div class="hero-trust"><span>✓ Apresentação real em Belém</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
         </div>
-
-        <div class="floating-chip chip-one glass" data-float-depth="18"><strong>+ valor percebido</strong><small>design pensado para conversão</small></div>
-        <div class="floating-chip chip-two glass" data-float-depth="26"><strong>Leads organizados</strong><small>formulário + banco de dados</small></div>
-      </div>
-    </section>
-
-    <section class="quick-path section-narrow reveal" aria-label="Acesso rápido">
-      <p>O que você precisa resolver agora?</p>
-      <div class="quick-path-grid">
-        <button type="button" data-service-choice="Cardápio Digital Premium">Criar um cardápio digital <span>→</span></button>
-        <button type="button" data-service-choice="Landing Page ou Site">Ter um site profissional <span>→</span></button>
-        <button type="button" data-service-choice="Automação ou Sistema">Automatizar meu negócio <span>→</span></button>
-        <button type="button" data-service-choice="Fotos ou Restauração">Melhorar ou restaurar fotos <span>→</span></button>
-      </div>
-    </section>
-
-    <section class="services section" id="servicos">
-      <div class="section-heading reveal">
-        <div class="eyebrow">SOLUÇÕES G TECH</div>
-        <h2>Uma experiência mais simples para o cliente. Uma operação mais forte para você.</h2>
-        <p>Escolha uma solução ou conte o problema. A G Tech organiza o caminho mais adequado.</p>
-      </div>
-
-      <div class="service-grid">
-        {% for service in services %}
-        <article class="service-card glass interactive-card reveal" data-tilt data-tilt-strength="5">
-          <div class="service-top"><span>{{ service.number }}</span><i aria-hidden="true">↗</i></div>
-          <h3>{{ service.title }}</h3>
-          <p>{{ service.description }}</p>
-          <ul>
-            {% for benefit in service.benefits %}<li>{{ benefit }}</li>{% endfor %}
-          </ul>
-          <button class="text-action" type="button" data-service-choice="{{ service.form_value }}">Quero essa solução <span>→</span></button>
-        </article>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="value-section section">
-      <div class="value-panel glass reveal">
-        <div class="value-copy">
-          <div class="eyebrow">NÃO É SÓ UM SITE BONITO</div>
-          <h2>Cada detalhe conduz o usuário para a próxima ação.</h2>
-          <p>A arquitetura foi pensada para reduzir dúvidas, destacar provas reais e facilitar o contato com a G Tech.</p>
-          <div class="value-list">
-            <div><strong>01</strong><span><b>Mensagem clara</b><small>O visitante entende em segundos o que você oferece.</small></span></div>
-            <div><strong>02</strong><span><b>Prova de confiança</b><small>Feedbacks reais aparecem antes da decisão.</small></span></div>
-            <div><strong>03</strong><span><b>Contato sem atrito</b><small>WhatsApp e diagnóstico sempre acessíveis.</small></span></div>
-          </div>
-        </div>
-        <div class="value-visual" data-tilt data-tilt-strength="6">
-          <div class="metric-card metric-main"><span>Experiência</span><strong>Ultra responsiva</strong><small>desktop • tablet • celular</small></div>
-          <div class="metric-card metric-a"><span>Interação</span><strong>3D suave</strong></div>
-          <div class="metric-card metric-b"><span>Conversão</span><strong>CTA em contexto</strong></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="results section" id="resultados">
-      <div class="section-heading reveal">
-        <div class="eyebrow">FEEDBACKS REAIS</div>
-        <h2>Confiança construída com resultado e atendimento.</h2>
-        <p>Os recortes abaixo preservam os dados pessoais e mostram mensagens reais recebidas após a entrega.</p>
-      </div>
-
-      <div class="feedback-grid">
-        {% for feedback in feedbacks %}
-        <article class="feedback-card glass interactive-card reveal" data-tilt data-tilt-strength="4">
-          <div class="feedback-copy">
-            <div class="rating" aria-label="5 estrelas">★★★★★</div>
-            <blockquote>“{{ feedback.quote }}”</blockquote>
-            <p>{{ feedback.context }}</p>
-          </div>
-          <button class="feedback-shot" type="button" data-lightbox="{{ url_for('static', filename='assets/' + feedback.image) }}" aria-label="Ampliar print do feedback real">
-            <img src="{{ url_for('static', filename='assets/' + feedback.image) }}" alt="Recorte de conversa com feedback real de cliente" loading="lazy">
-            <span>Ampliar prova real</span>
-          </button>
-        </article>
-        {% endfor %}
-      </div>
-    </section>
-
-    <section class="process section" id="processo">
-      <div class="section-heading reveal">
-        <div class="eyebrow">PROCESSO SEM COMPLICAÇÃO</div>
-        <h2>Do primeiro contato à entrega, você sabe o que acontece.</h2>
-      </div>
-      <div class="process-grid">
-        <article class="process-step reveal"><span>01</span><h3>Diagnóstico</h3><p>Entendemos objetivo, momento e principal necessidade do negócio.</p></article>
-        <article class="process-step reveal"><span>02</span><h3>Direção</h3><p>Definimos a solução, a estrutura e o caminho mais eficiente.</p></article>
-        <article class="process-step reveal"><span>03</span><h3>Criação</h3><p>Desenvolvemos, testamos e refinamos a experiência em cada tela.</p></article>
-        <article class="process-step reveal"><span>04</span><h3>Entrega</h3><p>Você recebe tudo pronto para divulgar, atender e vender melhor.</p></article>
-      </div>
-    </section>
-
-    <section class="channels section" id="redes">
-      <div class="section-heading reveal">
-        <div class="eyebrow">FALE COM A G TECH</div>
-        <h2>Escolha o canal mais conveniente.</h2>
-      </div>
-      <div class="channel-grid">
-        <a class="channel-card glass interactive-card reveal" data-tilt data-tilt-strength="4" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener"><span>WhatsApp</span><strong>{{ contacts.display_phone }}</strong><i>↗</i></a>
-        <a class="channel-card glass interactive-card reveal" data-tilt data-tilt-strength="4" href="{{ contacts.instagram }}" target="_blank" rel="noopener"><span>Instagram</span><strong>@gtech_brasil</strong><i>↗</i></a>
-        <a class="channel-card glass interactive-card reveal" data-tilt data-tilt-strength="4" href="{{ contacts.threads }}" target="_blank" rel="noopener"><span>Threads</span><strong>@gtech_brasil</strong><i>↗</i></a>
-        <a class="channel-card glass interactive-card reveal" data-tilt data-tilt-strength="4" href="{{ contacts.email }}"><span>E-mail</span><strong>{{ contacts.email_text }}</strong><i>↗</i></a>
-      </div>
-    </section>
-
-    <section class="diagnostic section" id="diagnostico">
-      <div class="diagnostic-shell glass reveal">
-        <div class="diagnostic-copy">
-          <div class="eyebrow">DIAGNÓSTICO GRATUITO</div>
-          <h2>Conte o que precisa. A G Tech prepara a direção certa.</h2>
-          <p>Leva menos de um minuto. Não perguntamos quanto você pretende gastar — primeiro entendemos o valor que precisa ser entregue.</p>
-
-          <div class="diagnostic-benefits">
-            <div><span>01</span><p><strong>Sem preço genérico</strong><small>Cada necessidade é analisada antes da proposta.</small></p></div>
-            <div><span>02</span><p><strong>Resposta personalizada</strong><small>Você recebe orientação adequada ao seu negócio.</small></p></div>
-            <div><span>03</span><p><strong>Atendimento organizado</strong><small>Seu contato fica salvo para acompanhamento.</small></p></div>
-          </div>
-        </div>
-
-        <form class="multi-form" action="{{ url_for('create_lead') }}" method="post" novalidate>
-          <input type="hidden" name="origem" id="origem" value="site_gtech">
-          <label class="honeypot" aria-hidden="true">Site<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
-
-          {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-              {% for category, message in messages %}<div class="form-alert {{ category }}" role="alert">{{ message }}</div>{% endfor %}
+        <div class="hero-visual" aria-label="Demonstrações dos produtos G Tech">
+          <div class="orbital orbital-one" aria-hidden="true"></div><div class="orbital orbital-two" aria-hidden="true"></div>
+          <div class="product-scene">
+            <div class="scene-top"><span class="scene-live"><i></i> VÍDEO 01 • DEMONSTRAÇÃO REAL</span><span>BELÉM/PA</span></div>
+            {% if belem_video_available %}
+            <video id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração real da G Tech no Belém Studio em Batista Campos, Belém"><source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4"></video>
+            <button id="showcase-sound" class="video-toggle belem-sound" type="button" aria-label="Reiniciar demonstração e ativar som">▶ Ouvir explicação</button>
+            <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
+            {% else %}
+            <div class="nfc-demo" aria-hidden="true"><div class="nfc-tile"><span class="nfc-icon">⌁</span><strong>G TECH</strong><small>Seu negócio a um toque.</small><span class="card-chip">NFC</span></div><div class="signal signal-one"></div><div class="signal signal-two"></div><div class="phone-demo"><span class="phone-island"></span><div class="phone-screen"><span>G Tech</span><b>Uma conexão.<br>Novas possibilidades.</b><i>● ● ●</i><span class="phone-button">Abrir perfil</span></div></div></div>
             {% endif %}
-          {% endwith %}
-
-          <div class="form-progress" aria-label="Progresso do formulário">
-            <button type="button" class="active" data-step-jump="1"><span>1</span><small>Contato</small></button>
-            <i></i>
-            <button type="button" data-step-jump="2"><span>2</span><small>Necessidade</small></button>
-            <i></i>
-            <button type="button" data-step-jump="3"><span>3</span><small>Objetivo</small></button>
+            <div class="scene-footer"><div><small>APRESENTAÇÃO REAL • BATISTA CAMPOS</small><strong>G Tech no Belém Studio</strong></div><span class="scene-price">R$ 79,99</span></div>
           </div>
+          <div class="scene-tag tag-left">Sites <b>que conectam.</b></div><div class="scene-tag tag-right">NFC <b>sem complicação.</b></div>
+        </div>
+      </div>
+      <div class="hero-bottom wrap"><span>DESÇA PARA EXPLORAR</span><button id="gtech-intro-replay" class="intro-replay" type="button" title="Assistir novamente à abertura cinematográfica">↻ Rever abertura</button><span class="arrow-down" aria-hidden="true">↓</span><span>DESIGN • TECNOLOGIA • EXPERIÊNCIA</span></div>
+    </section>
 
-          <section class="form-step active" data-step="1" aria-labelledby="step-title-1">
-            <div class="form-step-head"><small>Etapa 1 de 3</small><h3 id="step-title-1">Como podemos falar com você?</h3></div>
-            <label>Seu nome<input type="text" name="nome" autocomplete="name" placeholder="Como podemos chamar você?" maxlength="120" required><span class="field-error"></span></label>
-            <label>WhatsApp<input type="tel" name="whatsapp" autocomplete="tel" inputmode="tel" placeholder="(91) 99999-9999" maxlength="18" required><span class="field-error"></span></label>
-            <label>Qual é o seu negócio?<input type="text" name="negocio" autocomplete="organization" placeholder="Ex.: restaurante, loja, clínica ou autônomo" maxlength="180" required><span class="field-error"></span></label>
-            <button type="button" class="btn btn-primary btn-full next-step">Continuar <span>→</span></button>
-          </section>
+    <section class="partners-bar" aria-label="Áreas de atuação">
+      <div class="wrap partners-inner"><span>TECNOLOGIA PARA NEGÓCIOS REAIS</span><strong>COMÉRCIO</strong><strong>RESTAURANTES</strong><strong>PROFISSIONAIS</strong><strong>EMPRESAS</strong></div>
+    </section>
 
-          <section class="form-step" data-step="2" aria-labelledby="step-title-2" hidden>
-            <div class="form-step-head"><small>Etapa 2 de 3</small><h3 id="step-title-2">O que você precisa resolver?</h3></div>
-            <label>Serviço
-              <select name="servico" id="service-select" required>
-                <option value="">Selecione a melhor opção</option>
-                <option>Cardápio Digital Premium</option>
-                <option>Landing Page ou Site</option>
-                <option>Automação ou Sistema</option>
-                <option>Fotos ou Restauração</option>
-                <option>Preciso de orientação</option>
-              </select><span class="field-error"></span>
-            </label>
-            <label>Quando precisa?
-              <select name="prazo" required>
-                <option value="">Selecione o prazo</option>
-                <option>O mais rápido possível</option>
-                <option>Em até 7 dias</option>
-                <option>Em até 30 dias</option>
-                <option>Estou pesquisando</option>
-              </select><span class="field-error"></span>
-            </label>
-            <div class="form-nav"><button type="button" class="btn btn-secondary prev-step">Voltar</button><button type="button" class="btn btn-primary next-step">Continuar <span>→</span></button></div>
-          </section>
+    <section id="solucoes" class="section wrap" aria-labelledby="services-title">
+      <div class="section-head reveal">
+        <div><span class="eyebrow">01 / SOLUÇÕES</span><h2 id="services-title">Menos complicação.<br><em>Mais possibilidades.</em></h2></div>
+        <p>Conheça as soluções disponíveis e peça uma proposta adequada à sua necessidade. Sem promessas de resultados automáticos.</p>
+      </div>
+      <div class="services-grid">
+        {% for service in services %}
+        <article class="service-card reveal">
+          <div class="service-top"><span class="service-n">{{ '%02d'|format(loop.index) }}</span><span class="service-symbol" aria-hidden="true">{{ service.symbol }}</span></div>
+          <div class="service-info"><span class="service-category">{{ service.category }}</span><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
+          <div class="service-foot"><span class="service-price">{{ service.price }}</span><a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Solicitar <span aria-hidden="true">↗</span></a></div>
+        </article>
+        {% endfor %}
+      </div>
+      <p class="service-disclaimer">* Preços e escopos sujeitos à confirmação. Sites: manutenção de R$ 149,99/mês contratada separadamente. O serviço de perfil empresarial é independente do Google, sem garantia de classificação ou aprovação.</p>
+    </section>
 
-          <section class="form-step" data-step="3" aria-labelledby="step-title-3" hidden>
-            <div class="form-step-head"><small>Etapa 3 de 3</small><h3 id="step-title-3">Qual resultado você busca?</h3></div>
-            <label>Principal objetivo<textarea name="objetivo" rows="4" maxlength="2000" placeholder="Ex.: vender mais, organizar pedidos, divulgar melhor ou automatizar tarefas" required></textarea><span class="field-error"></span></label>
-            <label>Detalhes adicionais <small class="optional">opcional</small><textarea name="mensagem" rows="3" maxlength="2000" placeholder="Conte algo que ajude a entender melhor o projeto"></textarea></label>
-            <div class="privacy-note"><span>✓</span><p><strong>Seus dados estão protegidos.</strong><small>Usaremos as informações somente para atendimento da G Tech.</small></p></div>
-            <div class="form-nav"><button type="button" class="btn btn-secondary prev-step">Voltar</button><button type="submit" class="btn btn-primary submit-button"><span class="button-label">Enviar diagnóstico</span><span class="button-loader" aria-hidden="true"></span></button></div>
-          </section>
-        </form>
+    <section id="experiencia" class="spotlight" aria-label="Experiência G Tech">
+      <div class="wrap spotlight-grid">
+        <div class="spotlight-copy reveal"><span class="eyebrow">02 / EXPERIÊNCIA</span><h2>Uma marca forte merece <em>uma experiência à altura.</em></h2><p>Seu cliente quer entender, confiar e agir. Organizamos conteúdo, contato e design para reduzir atritos no caminho até o orçamento.</p><div class="spotlight-items"><span><b>01</b> Visual que valoriza a marca</span><span><b>02</b> Informações claras no celular</span><span><b>03</b> Contato sem complicação</span></div><a class="btn btn-solid" href="#contato">Quero meu projeto <span aria-hidden="true">↗</span></a></div>
+        <div class="spotlight-art reveal"><div class="glass-window"><div class="window-dots"><i></i><i></i><i></i></div><div class="glass-feature"><span>G TECH / CREATIVE STUDIO</span><strong>Ideias que ganham forma.</strong><div class="visual-bars"><i></i><i></i><i></i><i></i></div></div><div class="glass-cards"><div>VISUAL</div><div>NFC</div><div>CONEXÃO</div></div></div></div>
       </div>
     </section>
 
-    <section class="faq section">
-      <div class="section-heading reveal"><div class="eyebrow">DÚVIDAS FREQUENTES</div><h2>O essencial antes de começar.</h2></div>
-      <div class="faq-list reveal">
-        <details><summary>Como funciona o orçamento?<span>+</span></summary><p>Primeiro entendemos sua necessidade e o nível de entrega. Depois você recebe uma proposta clara e adequada ao projeto.</p></details>
-        <details><summary>O atendimento pode ser feito online?<span>+</span></summary><p>Sim. A G Tech atende clientes de qualquer região e conduz alinhamento, criação e entrega de forma digital.</p></details>
-        <details><summary>Preciso já ter textos, fotos e logo?<span>+</span></summary><p>Não. O material disponível é avaliado e você recebe orientação sobre o que precisa ser organizado ou melhorado.</p></details>
-        <details><summary>O projeto funciona bem no celular?<span>+</span></summary><p>Sim. A experiência é construída com prioridade para celular e testada também em desktop e tablet.</p></details>
+    <section id="projetos" class="section portfolio-real wrap" aria-labelledby="projects-title">
+      <div class="section-head reveal">
+        <div><span class="eyebrow">03 / PROJETOS REAIS</span><h2 id="projects-title">Veja o que a G Tech<br><em>realmente entrega.</em></h2></div>
+        <p>Conheça demonstrações dos nossos produtos e veja de perto como as soluções da G Tech funcionam na prática.</p>
       </div>
+      <div class="portfolio-grid">
+        <article class="portfolio-card portfolio-feature reveal" id="video-belem-studio">
+          <div class="portfolio-player">
+            <video controls playsinline preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração presencial da G Tech no Belém Studio, Batista Campos">
+              <source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta este vídeo MP4.
+            </video>
+          </div>
+          <div class="portfolio-detail"><div><small>01 • DEMONSTRAÇÃO PRESENCIAL • BATISTA CAMPOS</small><h3>G Tech no Belém Studio</h3><p>Apresentação real do produto e de sua utilização, gravada presencialmente.</p></div>
+          <div class="portfolio-links"><a href="#contato" class="pill-cta" data-product="Placa NFC Personalizada">Quero meu NFC ↗</a><span class="portfolio-real-label">Vídeo com explicação real</span></div></div>
+        </article>
+        <article class="portfolio-card portfolio-feature reveal">
+          <div class="portfolio-player">
+            {% if nfc_demo_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Demonstração de NFC da G Tech"><source src="{{ url_for('static',filename='media/nfc-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / NFC</span><strong>Vídeo real de NFC</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>02 • NFC EM AÇÃO</small><h3>Seu negócio a um toque.</h3><p>Veja a plaquinha NFC sendo utilizada com um celular. Produto físico com configuração digital.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Quero meu NFC ↗</a></div>
+          </div>
+        </article>
+        <article class="portfolio-card reveal">
+          <div class="portfolio-player">
+            {% if cardapio_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Gravação real de cardápio digital da G Tech"><source src="{{ url_for('static',filename='media/cardapio-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / CARDÁPIO DIGITAL</span><strong>Gravação do projeto real</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>03 • CARDÁPIO DIGITAL</small><h3>Cardápio premium de verdade.</h3><p>Uma gravação real da experiência, com navegação pelos produtos e organização do cardápio.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Cardápio Digital Premium" class="pill-cta">Quero um cardápio ↗</a></div>
+          </div>
+        </article>
+        <article class="portfolio-card reveal">
+          <div class="portfolio-player">
+            {% if nfc_video_available %}
+            <video controls playsinline preload="metadata" aria-label="Plaquinha NFC personalizada da G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
+            {% else %}
+            <div class="portfolio-file-pending"><span>G TECH / PRODUTO REAL</span><strong>Personalização NFC</strong><p>Material em preparação para publicação.</p></div>
+            {% endif %}
+          </div>
+          <div class="portfolio-detail">
+            <div><small>04 • NFC PARA REDES SOCIAIS</small><h3>Google e Instagram a um toque.</h3><p>Plaquinhas NFC para aproximar o cliente dos canais digitais do negócio.</p></div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Pedir NFC ↗</a></div>
+          </div>
+        </article>
+      </div>
+      
     </section>
 
-    <section class="final-cta section-narrow reveal">
-      <div><span>PRONTO PARA COMEÇAR?</span><h2>Transforme sua ideia em uma presença digital que inspira confiança.</h2></div>
-      <a class="btn btn-primary magnetic" href="#diagnostico">Solicitar diagnóstico <span>→</span></a>
+    <section class="section wrap testimonials" id="depoimentos" aria-labelledby="testimonial-title">
+      <div class="section-head reveal"><div><span class="eyebrow">04 / FEEDBACKS REAIS</span><h2 id="testimonial-title">Quem confia na G Tech<br><em>tem voz.</em></h2></div><p>Mensagens de clientes recebidas após trabalhos de restauração e edição de fotos. Um cuidado que aparece na entrega.</p></div>
+      <div class="testimonial-grid">
+        {% for item in feedbacks %}
+        <article class="review-card reveal">
+          <a class="review-proof" href="{{ url_for('static',filename='assets/' ~ item.image) }}" target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem original do feedback {{ loop.index }}">
+            <img src="{{ url_for('static',filename='assets/' ~ item.image) }}" loading="eager" decoding="async" width="785" height="635" alt="Captura de conversa de cliente elogiando a entrega da G Tech, com dados pessoais de identificação omitidos">
+            <span>Ampliar mensagem original <span aria-hidden="true">↗</span></span>
+          </a>
+          <div class="review-quote"><span class="quote-mark" aria-hidden="true">“</span><blockquote>{{ item.quote }}</blockquote><p>{{ item.context }}</p></div>
+        </article>
+        {% endfor %}
+      </div>
+      <div class="review-cta reveal"><span>Conheça o trabalho. Converse com quem entrega.</span><a class="pill-cta" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Falar com a G Tech ↗</a></div>
     </section>
+
+    <section id="como-funciona" class="section process-section" aria-labelledby="process-title">
+      <div class="wrap"><div class="section-head reveal"><div><span class="eyebrow">05 / PROCESSO</span><h2 id="process-title">Do primeiro contato<br><em>à entrega.</em></h2></div><p>Um processo transparente, com acompanhamento e aprovação antes das etapas que geram cobrança.</p></div><div class="process-grid"><article class="reveal"><span>01</span><h3>Converse</h3><p>Conte qual desafio seu negócio precisa resolver.</p></article><article class="reveal"><span>02</span><h3>Receba a proposta</h3><p>Alinhamos o escopo, o prazo e as condições.</p></article><article class="reveal"><span>03</span><h3>Aprove</h3><p>Você confirma o projeto e as condições antes do início.</p></article><article class="reveal"><span>04</span><h3>Receba</h3><p>Entregamos o que foi contratado e orientamos a utilização.</p></article></div></div>
+    </section>
+
+    <section id="contato" class="section contact-section" aria-labelledby="contact-title">
+      <div class="wrap contact-grid">
+        <div class="contact-copy reveal"><span class="eyebrow">06 / FALE COM A G TECH</span><h2 id="contact-title">Seu próximo projeto <em>começa aqui.</em></h2><p>Conte o que precisa. Recebemos sua solicitação e retornamos com os próximos passos. O formulário não realiza cobrança.</p><a href="{{ contacts.whatsapp }}" class="contact-wa" target="_blank" rel="noopener noreferrer"><span>◉</span><span><b>Atendimento comercial</b><small>{{ contacts.display_phone }}</small></span><span>↗</span></a><div class="contact-hours">Belém/PA • Atendimento digital para outras regiões</div></div>
+        <div class="form-shell reveal">
+          <div class="form-top"><span>G TECH / BRIEFING</span><span>SEM COMPROMISSO</span></div>
+          <form action="{{ url_for('create_lead') }}" method="post" id="quote-form">
+            <input type="hidden" name="origem" id="origem" value="site_oficial_v3">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="prazo" value="Estou pesquisando">
+            <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+            {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="form-flashes" role="alert">{% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
+            <p class="form-instruction">4 informações para iniciar. Sem cobrança, sem compromisso.</p>
+            <fieldset class="briefing-fields" {% if drive_preview_enabled %}disabled{% endif %}>
+              <label>Como podemos chamar você? <span>*</span>
+                <input name="nome" type="text" required minlength="2" maxlength="120" autocomplete="name" placeholder="Seu primeiro nome">
+              </label>
+              <label>WhatsApp com DDD <span>*</span>
+                <input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" aria-describedby="phone-help">
+                <small id="phone-help" class="form-helper">Um celular brasileiro verdadeiro. Não aceitamos números de exemplo.</small>
+              </label>
+              <label>Qual serviço deseja? <span>*</span>
+                <select name="servico" id="service-select" required><option value="">Escolha a solução</option>{% for service in services %}<option value="{{ service.form_value }}">{{ service.title }}</option>{% endfor %}<option value="Outro serviço">Preciso de orientação</option></select>
+              </label>
+              <label>Descreva o que precisa <span>*</span>
+                <textarea name="objetivo" required minlength="10" maxlength="2000" rows="3" placeholder="Ex.: Quero NFC para a recepção do meu estúdio."></textarea>
+              </label>
+              <details class="optional-brief"><summary>Dados adicionais (opcional)</summary>
+                <label>Nome do negócio<input name="negocio" type="text" maxlength="180" autocomplete="organization" placeholder="Empresa, loja ou projeto"></label>
+                <label>Sua cidade<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém"></label>
+              </details>
+              <label class="consent"><input type="checkbox" name="consentimento" value="yes" required>
+                <span>Autorizo utilizar meus dados somente para responder a este orçamento. <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de privacidade.</a></span></label>
+              <button class="btn btn-solid form-submit" type="submit">Pedir orçamento gratuito <span aria-hidden="true">↗</span></button>
+            </fieldset>
+            {% if drive_preview_enabled %}<p class="preview-form-message" role="status">Este é um ambiente de demonstração: formulário desativado para proteger dados pessoais. Para conversar agora, use o WhatsApp oficial.</p>{% endif %}
+            <p class="form-note">A G Tech não cobra ao receber o formulário. A contratação depende de proposta e aceite.</p>
+          </form>
+        </div>
+      </div>
+    </section>
+    <section class="faq-section section wrap" aria-labelledby="faq-title"><div class="section-head reveal"><div><span class="eyebrow">07 / PERGUNTAS FREQUENTES</span><h2 id="faq-title">Respostas sem complicação.</h2></div></div><div class="faq-grid reveal"><details><summary>A G Tech atende fora de Belém?</summary><p>Projetos digitais podem ser atendidos online. Entrega de itens físicos e eventuais custos são confirmados no orçamento.</p></details><details><summary>O site já cobra automaticamente?</summary><p>Não. O formulário solicita orçamento. Eventuais pagamentos são combinados somente após proposta e confirmação do meio de cobrança.</p></details><details><summary>O valor de R$ 500 inclui manutenção?</summary><p>Não. A criação de site começa em R$ 500 e a manutenção de R$ 149,99 por mês é contratada separadamente, conforme proposta.</p></details><details><summary>Vocês são parceiros do Google?</summary><p>A G Tech é uma empresa independente. A organização do Perfil da Empresa no Google não garante posição em pesquisas.</p></details></div></section>
+    <section class="final-band"><div class="wrap final-content"><div><span>G TECH / INNOVATION &amp; SOLUTIONS</span><h2>Tecnologia de verdade.<br>Ideias que viram negócio.</h2></div><a class="btn btn-solid" href="#contato">Vamos começar ↗</a></div></section>
   </main>
-
-  <footer class="footer">
-    <div class="footer-main section-narrow">
-      <a class="brand" href="#topo"><span class="brand-mark"><img src="{{ url_for('static', filename='assets/gtech-logo.png') }}" alt=""></span><span class="brand-copy"><strong>G Tech</strong><small>Innovation &amp; Solutions</small></span></a>
-      <div class="footer-links"><a href="#servicos">Serviços</a><a href="#resultados">Feedbacks</a><a href="#diagnostico">Diagnóstico</a><a href="{{ contacts.instagram }}" target="_blank" rel="noopener">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a></div>
-      <small>© {{ year }} G Tech. Tecnologia, design e soluções com foco em resultado.</small>
+  <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><button type="button" class="footer-cookie-button" id="cookie-settings">Preferências de cookies</button><span>© {{ year }} G Tech</span></div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
+  <aside class="cookie-notice" id="cookie-notice" role="dialog" aria-modal="false" aria-labelledby="cookie-title" hidden>
+    <div class="cookie-copy"><strong id="cookie-title">Sua privacidade importa</strong>
+      <p>O site utiliza cookie essencial para proteção do formulário. Recursos opcionais só serão usados mediante sua escolha; não há rastreamento de anúncios ativo nesta versão. <a href="{{ url_for('privacy_policy') }}">Ver política</a>.</p>
     </div>
-  </footer>
-
-  <div class="mobile-action-bar" aria-label="Ações rápidas">
-    <a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener">WhatsApp</a>
-    <a href="#diagnostico">Pedir diagnóstico</a>
-  </div>
-
-  <div class="lightbox" role="dialog" aria-modal="true" aria-label="Visualização do feedback" hidden>
-    <button type="button" class="lightbox-close" aria-label="Fechar">×</button>
-    <img src="" alt="Feedback real ampliado">
-  </div>
-
-  <script src="{{ url_for('static', filename='script.js') }}"></script>
-</body>
-</html>
+    <div class="cookie-actions">
+      <button type="button" class="cookie-reject" data-cookie-choice="essential">Somente essenciais</button>
+      <button type="button" class="cookie-accept" data-cookie-choice="all">Aceitar opcionais</button>
+    </div>
+  </aside>
+  <div class="mobile-actions" aria-label="Acesso rápido no celular"><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="#contato">Orçamento ↗</a></div>
+</body></html>
