@@ -7,8 +7,11 @@ import logging
 import os
 import re
 import secrets
+import threading
+import time
 import urllib.request
 from datetime import datetime
+from collections import defaultdict, deque
 from functools import wraps
 from urllib.parse import quote
 
@@ -53,6 +56,7 @@ app.config.update(
     MAX_CONTENT_LENGTH=1 * 1024 * 1024,
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SAMESITE="Lax",
+    PERMANENT_SESSION_LIFETIME=1800,
 )
 
 if os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("FLASK_ENV") == "production":
@@ -181,6 +185,16 @@ def set_security_headers(response: Response) -> Response:
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains" if request.is_secure else "")
+    if not request.is_secure:
+        response.headers.pop("Strict-Transport-Security", None)
+    response.headers.setdefault("Content-Security-Policy", (
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
+        "form-action 'self'; script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com; "
+        "img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src 'none'"
+    ))
     response.headers.setdefault(
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )
@@ -221,11 +235,56 @@ def clean_text(value: str | None, max_length: int) -> str:
     return (value or "").strip()[:max_length]
 
 
-def valid_phone(value: str) -> bool:
-    digits = re.sub(r"\D", "", value)
-    if digits.startswith("55") and len(digits) in (12, 13):
+# Brazilian geographic area codes, following actual NANP-like national numbering groups.
+BR_DDDS = {11,12,13,14,15,16,17,18,19,21,22,24,27,28,31,32,33,34,35,37,38,
+           41,42,43,44,45,46,47,48,49,51,53,54,55,61,62,63,64,65,66,67,68,69,
+           71,73,74,75,77,79,81,82,83,84,85,86,87,88,89,91,92,93,94,95,96,97,98,99}
+
+
+def normalize_mobile(value: str) -> str | None:
+    """Brazilian mobile syntax, not proof that a WhatsApp account exists."""
+    digits = re.sub(r"\D", "", value or "")
+    if digits.startswith("55") and len(digits) == 13:
         digits = digits[2:]
-    return len(digits) in (10, 11) and digits.isdigit()
+    if len(digits) != 11 or int(digits[:2]) not in BR_DDDS or digits[2] != "9":
+        return None
+    subscriber = digits[2:]
+    # Obvious dummy/test patterns; don't pretend to verify number ownership.
+    if len(set(subscriber)) < 3:
+        return None
+    tail = subscriber[1:]
+    if tail in ("12345678", "87654321", "00000000", "11111111", "22222222",
+                "33333333", "44444444", "55555555", "66666666", "77777777",
+                "88888888", "99999999"):
+        return None
+    return digits
+
+
+def valid_phone(value: str) -> bool:
+    return normalize_mobile(value) is not None
+
+
+# Lightweight single-process protection. Needs a shared Redis/WAF limit before
+# production-scale traffic across multiple replicas.
+_lead_attempts: dict[str, deque[float]] = defaultdict(deque)
+_lead_attempts_lock = threading.Lock()
+
+
+def excessive_lead_submissions(ip: str) -> bool:
+    now = time.monotonic()
+    with _lead_attempts_lock:
+        if len(_lead_attempts) > 2000:
+            # Bound memory in long-running single-process instances.
+            for key in list(_lead_attempts)[:500]:
+                if not _lead_attempts[key] or now - _lead_attempts[key][-1] > 600:
+                    _lead_attempts.pop(key, None)
+        events = _lead_attempts[ip]
+        while events and now - events[0] > 600:
+            events.popleft()
+        if len(events) >= 5:
+            return True
+        events.append(now)
+        return False
 
 
 @app.route("/")
@@ -239,6 +298,7 @@ def index():
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
         csrf_token=session["lead_csrf"],
+        belem_video_available=os.path.isfile(os.path.join(BASE_DIR, "static", "media", "belem-studio-nfc.mp4")),
         nfc_video_available=os.path.isfile(
             os.path.join(BASE_DIR, "static", "media", "hero-nfc.mp4")
         ),
@@ -323,21 +383,26 @@ def create_lead():
         abort(400)
     if request.form.get("website"):
         abort(400)
+    if excessive_lead_submissions(request.remote_addr or "unknown"):
+        return Response("Muitas tentativas. Aguarde alguns minutos antes de enviar novamente.", status=429)
     if request.form.get("consentimento") != "yes":
         flash("É necessário autorizar o uso dos dados para responder ao orçamento.", "error")
         return redirect(url_for("index") + "#contato")
 
     nome = clean_text(request.form.get("nome"), 120)
     whatsapp = clean_text(request.form.get("whatsapp"), 40)
-    negocio = clean_text(request.form.get("negocio"), 180)
+    negocio = clean_text(request.form.get("negocio"), 180) or "Cliente interessado"
     servico = clean_text(request.form.get("servico"), 120)
-    prazo = clean_text(request.form.get("prazo"), 120)
+    prazo = clean_text(request.form.get("prazo"), 120) or "Estou pesquisando"
     objetivo = clean_text(request.form.get("objetivo"), 2000)
     mensagem = clean_text(request.form.get("mensagem"), 2000)
     origem = clean_text(request.form.get("origem"), 180)
     cidade = clean_text(request.form.get("cidade"), 100)
 
-    required = [nome, whatsapp, negocio, servico, prazo, objetivo]
+    required = [nome, whatsapp, servico, objetivo]
+    if len(nome) < 2 or len(objetivo) < 10:
+        flash("Informe seu nome e descreva brevemente sua necessidade.", "error")
+        return redirect(url_for("index") + "#contato")
     allowed_services = {item["form_value"] for item in SERVICES} | {"Outro serviço"}
     allowed_deadlines = {
         "O mais rápido possível", "Em até 7 dias", "Em até 30 dias", "Estou pesquisando"
@@ -347,12 +412,12 @@ def create_lead():
         return redirect(url_for("index") + "#contato")
 
     if not valid_phone(whatsapp):
-        flash("Digite um WhatsApp válido com DDD.", "error")
+        flash("Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo.", "error")
         return redirect(url_for("index") + "#contato")
 
     lead = Lead(
         nome=nome,
-        whatsapp=whatsapp,
+        whatsapp=normalize_mobile(whatsapp) or whatsapp,
         negocio=negocio,
         servico=servico,
         prazo=prazo,
