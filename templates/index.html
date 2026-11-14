@@ -215,18 +215,36 @@
         <div class="form-shell reveal">
           <div class="form-top"><span>G TECH / BRIEFING</span><span>SEM COMPROMISSO</span></div>
           <form action="{{ url_for('create_lead') }}" method="post" id="quote-form">
-            <input type="hidden" name="origem" id="origem" value="site_oficial_v2">
+            <input type="hidden" name="origem" id="origem" value="site_oficial_v3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="prazo" value="Estou pesquisando">
             <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
             {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="form-flashes" role="alert">{% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
-            <div class="form-row"><label>Seu nome <span>*</span><input name="nome" type="text" required maxlength="120" autocomplete="name" placeholder="Como podemos chamar você?"></label><label>WhatsApp com DDD <span>*</span><input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel" inputmode="tel" placeholder="(91) 99999-9999"></label></div>
-            <label>Nome do negócio <span>*</span><input name="negocio" type="text" required maxlength="180" autocomplete="organization" placeholder="Empresa, marca ou projeto pessoal"></label>
-            <label>Seu município (opcional)<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém, Ananindeua, outra cidade"></label>
-            <div class="form-row"><label>Solução desejada <span>*</span><select name="servico" id="service-select" required><option value="">Selecione</option>{% for service in services %}<option value="{{ service.form_value }}">{{ service.title }}</option>{% endfor %}<option value="Outro serviço">Outro / quero orientação</option></select></label><label>Quando pretende começar? <span>*</span><select name="prazo" required><option value="">Selecione</option><option>O mais rápido possível</option><option>Em até 7 dias</option><option>Em até 30 dias</option><option>Estou pesquisando</option></select></label></div>
-            <label>O que você precisa? <span>*</span><textarea name="objetivo" required maxlength="2000" rows="3" placeholder="Descreva seu projeto em poucas palavras."></textarea></label>
-            <label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o uso dos meus dados para responder a esta solicitação de orçamento. Não autorizo campanhas de marketing.</span></label>
-            <button class="btn btn-solid form-submit" type="submit">Enviar solicitação <span aria-hidden="true">↗</span></button>
-            <p class="form-note">Ao enviar, você não realiza uma compra. Preços, disponibilidade e prazo serão confirmados no atendimento.</p>
+            <p class="form-instruction">4 informações para iniciar. Sem cobrança, sem compromisso.</p>
+            <fieldset class="briefing-fields" {% if drive_preview_enabled %}disabled{% endif %}>
+              <label>Como podemos chamar você? <span>*</span>
+                <input name="nome" type="text" required minlength="2" maxlength="120" autocomplete="name" placeholder="Seu primeiro nome">
+              </label>
+              <label>WhatsApp com DDD <span>*</span>
+                <input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" aria-describedby="phone-help">
+                <small id="phone-help" class="form-helper">Um celular brasileiro verdadeiro. Não aceitamos números de exemplo.</small>
+              </label>
+              <label>Qual serviço deseja? <span>*</span>
+                <select name="servico" id="service-select" required><option value="">Escolha a solução</option>{% for service in services %}<option value="{{ service.form_value }}">{{ service.title }}</option>{% endfor %}<option value="Outro serviço">Preciso de orientação</option></select>
+              </label>
+              <label>Descreva o que precisa <span>*</span>
+                <textarea name="objetivo" required minlength="10" maxlength="2000" rows="3" placeholder="Ex.: Quero NFC para a recepção do meu estúdio."></textarea>
+              </label>
+              <details class="optional-brief"><summary>Dados adicionais (opcional)</summary>
+                <label>Nome do negócio<input name="negocio" type="text" maxlength="180" autocomplete="organization" placeholder="Empresa, loja ou projeto"></label>
+                <label>Sua cidade<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém"></label>
+              </details>
+              <label class="consent"><input type="checkbox" name="consentimento" value="yes" required>
+                <span>Autorizo utilizar meus dados somente para responder a este orçamento. <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de privacidade.</a></span></label>
+              <button class="btn btn-solid form-submit" type="submit">Pedir orçamento gratuito <span aria-hidden="true">↗</span></button>
+            </fieldset>
+            {% if drive_preview_enabled %}<p class="preview-form-message" role="status">Este é um ambiente de demonstração: formulário desativado para proteger dados pessoais. Para conversar agora, use o WhatsApp oficial.</p>{% endif %}
+            <p class="form-note">A G Tech não cobra ao receber o formulário. A contratação depende de proposta e aceite.</p>
           </form>
         </div>
       </div>
@@ -234,6 +252,15 @@
     <section class="faq-section section wrap" aria-labelledby="faq-title"><div class="section-head reveal"><div><span class="eyebrow">07 / PERGUNTAS FREQUENTES</span><h2 id="faq-title">Respostas sem complicação.</h2></div></div><div class="faq-grid reveal"><details><summary>A G Tech atende fora de Belém?</summary><p>Projetos digitais podem ser atendidos online. Entrega de itens físicos e eventuais custos são confirmados no orçamento.</p></details><details><summary>O site já cobra automaticamente?</summary><p>Não. O formulário solicita orçamento. Eventuais pagamentos são combinados somente após proposta e confirmação do meio de cobrança.</p></details><details><summary>O valor de R$ 500 inclui manutenção?</summary><p>Não. A criação de site começa em R$ 500 e a manutenção de R$ 149,99 por mês é contratada separadamente, conforme proposta.</p></details><details><summary>Vocês são parceiros do Google?</summary><p>A G Tech é uma empresa independente. A organização do Perfil da Empresa no Google não garante posição em pesquisas.</p></details></div></section>
     <section class="final-band"><div class="wrap final-content"><div><span>G TECH / INNOVATION &amp; SOLUTIONS</span><h2>Tecnologia de verdade.<br>Ideias que viram negócio.</h2></div><a class="btn btn-solid" href="#contato">Vamos começar ↗</a></div></section>
   </main>
-  <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><span>© {{ year }} G Tech</span></div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
+  <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><button type="button" class="footer-cookie-button" id="cookie-settings">Preferências de cookies</button><span>© {{ year }} G Tech</span></div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
+  <aside class="cookie-notice" id="cookie-notice" role="dialog" aria-modal="false" aria-labelledby="cookie-title" hidden>
+    <div class="cookie-copy"><strong id="cookie-title">Sua privacidade importa</strong>
+      <p>O site utiliza cookie essencial para proteção do formulário. Recursos opcionais só serão usados mediante sua escolha; não há rastreamento de anúncios ativo nesta versão. <a href="{{ url_for('privacy_policy') }}">Ver política</a>.</p>
+    </div>
+    <div class="cookie-actions">
+      <button type="button" class="cookie-reject" data-cookie-choice="essential">Somente essenciais</button>
+      <button type="button" class="cookie-accept" data-cookie-choice="all">Aceitar opcionais</button>
+    </div>
+  </aside>
   <div class="mobile-actions" aria-label="Acesso rápido no celular"><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="#contato">Orçamento ↗</a></div>
 </body></html>
