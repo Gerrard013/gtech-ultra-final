@@ -80,9 +80,6 @@
             <video id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração real da G Tech no Belém Studio em Batista Campos, Belém"><source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4"></video>
             <button id="showcase-sound" class="video-toggle belem-sound" type="button" aria-label="Reiniciar demonstração e ativar som">▶ Ouvir explicação</button>
             <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
-            {% elif drive_preview_enabled %}
-            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1wcl786wroufMreLbvlOhb_b6Iit4hsGo&sz=w960')" data-video-src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" data-video-title="Vídeo original: NFC EM AÇÃO" role="group" aria-label="Reprodução do vídeo original NFC EM AÇÃO">
- <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>NFC EM AÇÃO</strong><p>Veja o NFC aproximando e abrindo o conteúdo no celular</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: NFC EM AÇÃO"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="nfc-demo" aria-hidden="true"><div class="nfc-tile"><span class="nfc-icon">⌁</span><strong>G TECH</strong><small>Seu negócio a um toque.</small><span class="card-chip">NFC</span></div><div class="signal signal-one"></div><div class="signal signal-two"></div><div class="phone-demo"><span class="phone-island"></span><div class="phone-screen"><span>G Tech</span><b>Uma conexão.<br>Novas possibilidades.</b><i>● ● ●</i><span class="phone-button">Abrir perfil</span></div></div></div>
             {% endif %}
@@ -141,52 +138,43 @@
           <div class="portfolio-player">
             {% if nfc_demo_video_available %}
             <video controls playsinline preload="metadata" aria-label="Demonstração de NFC da G Tech"><source src="{{ url_for('static',filename='media/nfc-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
-            {% elif drive_preview_enabled %}
-            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1wcl786wroufMreLbvlOhb_b6Iit4hsGo&sz=w960')" data-video-src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" data-video-title="Vídeo original: NFC EM AÇÃO" role="group" aria-label="Reprodução do vídeo original NFC EM AÇÃO">
- <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>NFC EM AÇÃO</strong><p>Veja o NFC aproximando e abrindo o conteúdo no celular</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: NFC EM AÇÃO"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / NFC</span><strong>Vídeo real de NFC</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
           </div>
           <div class="portfolio-detail">
             <div><small>02 • NFC EM AÇÃO</small><h3>Seu negócio a um toque.</h3><p>Veja a plaquinha NFC sendo utilizada com um celular. Produto físico com configuração digital.</p></div>
-            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Quero meu NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Quero meu NFC ↗</a></div>
           </div>
         </article>
         <article class="portfolio-card reveal">
           <div class="portfolio-player">
             {% if cardapio_video_available %}
             <video controls playsinline preload="metadata" aria-label="Gravação real de cardápio digital da G Tech"><source src="{{ url_for('static',filename='media/cardapio-demo.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
-            {% elif drive_preview_enabled %}
-            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g&sz=w960')" data-video-src="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/preview" data-video-title="Vídeo original: CARDÁPIO DIGITAL REAL" role="group" aria-label="Reprodução do vídeo original CARDÁPIO DIGITAL REAL">
- <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>CARDÁPIO DIGITAL REAL</strong><p>Assista à navegação no projeto da G Tech</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: CARDÁPIO DIGITAL REAL"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / CARDÁPIO DIGITAL</span><strong>Gravação do projeto real</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
           </div>
           <div class="portfolio-detail">
             <div><small>03 • CARDÁPIO DIGITAL</small><h3>Cardápio premium de verdade.</h3><p>Uma gravação real da experiência, com navegação pelos produtos e organização do cardápio.</p></div>
-            <div class="portfolio-links"><a href="#contato" data-product="Cardápio Digital Premium" class="pill-cta">Quero um cardápio ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+            <div class="portfolio-links"><a href="#contato" data-product="Cardápio Digital Premium" class="pill-cta">Quero um cardápio ↗</a></div>
           </div>
         </article>
         <article class="portfolio-card reveal">
           <div class="portfolio-player">
             {% if nfc_video_available %}
             <video controls playsinline preload="metadata" aria-label="Plaquinha NFC personalizada da G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta vídeo.</video>
-            {% elif drive_preview_enabled %}
-            <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM&sz=w960')" data-video-src="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/preview" data-video-title="Vídeo original: PLAQUINHAS PERSONALIZADAS" role="group" aria-label="Reprodução do vídeo original PLAQUINHAS PERSONALIZADAS">
- <div class="teaser-content"><span class="teaser-eyebrow">G TECH / MATERIAL REAL</span><strong>PLAQUINHAS PERSONALIZADAS</strong><p>Assista ao produto NFC físico em demonstração</p><button type="button" class="teaser-play" aria-label="Reproduzir vídeo original: PLAQUINHAS PERSONALIZADAS"><span aria-hidden="true">▶</span> Reproduzir vídeo</button></div></div>
             {% else %}
             <div class="portfolio-file-pending"><span>G TECH / PRODUTO REAL</span><strong>Personalização NFC</strong><p>Material em preparação para publicação.</p></div>
             {% endif %}
           </div>
           <div class="portfolio-detail">
             <div><small>04 • NFC PARA REDES SOCIAIS</small><h3>Google e Instagram a um toque.</h3><p>Plaquinhas NFC para aproximar o cliente dos canais digitais do negócio.</p></div>
-            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Pedir NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
+            <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Pedir NFC ↗</a></div>
           </div>
         </article>
       </div>
-      {% if drive_preview_enabled %}<p class="portfolio-clarity">Vídeos originais disponibilizados no Google Drive exclusivamente para revisão. Dependendo das permissões, a reprodução pode pedir login. Para lançamento, os MP4 otimizados serão hospedados no próprio site.</p>{% endif %}
+      
     </section>
 
     <section class="section wrap testimonials" id="depoimentos" aria-labelledby="testimonial-title">
