@@ -91,6 +91,8 @@ class OfficialSiteTests(unittest.TestCase):
                        "(91) 11111-1111", "1198765432", "00000000000",
                        "91900000000", "+55 91 99999-9999"]:
             self.assertIsNone(normalize_mobile(number), number)
+            with _lead_attempts_lock:
+                _lead_attempts.clear()
             payload = self.lead_data()
             payload["whatsapp"] = number
             response = self.client.post("/lead", data=payload)
