@@ -70,14 +70,15 @@
             <a class="btn btn-solid" href="#solucoes">Ver serviços e preços <span aria-hidden="true">↗</span></a>
             <a class="btn btn-outline" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar no WhatsApp</a>
           </div>
-          <div class="hero-trust"><span>✓ Demonstrações reais</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
+          <div class="hero-trust"><span>✓ Apresentação real em Belém</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
         </div>
         <div class="hero-visual" aria-label="Demonstrações dos produtos G Tech">
           <div class="orbital orbital-one" aria-hidden="true"></div><div class="orbital orbital-two" aria-hidden="true"></div>
           <div class="product-scene">
-            <div class="scene-top"><span class="scene-live"><i></i> TECNOLOGIA EM AÇÃO</span><span>01 / 03</span></div>
-            {% if nfc_video_available %}
-            <video id="showcase-video" class="scene-video" muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='assets/gtech-logo.png') }}" aria-label="Demonstração de plaquinha NFC G Tech"><source src="{{ url_for('static',filename='media/hero-nfc.mp4') }}" type="video/mp4"></video>
+            <div class="scene-top"><span class="scene-live"><i></i> VÍDEO 01 • DEMONSTRAÇÃO REAL</span><span>BELÉM/PA</span></div>
+            {% if belem_video_available %}
+            <video id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração real da G Tech no Belém Studio em Batista Campos, Belém"><source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4"></video>
+            <button id="showcase-sound" class="video-toggle belem-sound" type="button" aria-label="Reiniciar demonstração e ativar som">▶ Ouvir explicação</button>
             <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
             {% elif drive_preview_enabled %}
             <div class="video-teaser" style="--video-thumb:url('https://drive.google.com/thumbnail?id=1wcl786wroufMreLbvlOhb_b6Iit4hsGo&sz=w960')" data-video-src="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/preview" data-video-title="Vídeo original: NFC EM AÇÃO" role="group" aria-label="Reprodução do vídeo original NFC EM AÇÃO">
@@ -85,7 +86,7 @@
             {% else %}
             <div class="nfc-demo" aria-hidden="true"><div class="nfc-tile"><span class="nfc-icon">⌁</span><strong>G TECH</strong><small>Seu negócio a um toque.</small><span class="card-chip">NFC</span></div><div class="signal signal-one"></div><div class="signal signal-two"></div><div class="phone-demo"><span class="phone-island"></span><div class="phone-screen"><span>G Tech</span><b>Uma conexão.<br>Novas possibilidades.</b><i>● ● ●</i><span class="phone-button">Abrir perfil</span></div></div></div>
             {% endif %}
-            <div class="scene-footer"><div><small>PRODUTO EM DESTAQUE</small><strong>Plaquinha NFC personalizada</strong></div><span class="scene-price">R$ 79,99</span></div>
+            <div class="scene-footer"><div><small>APRESENTAÇÃO REAL • BATISTA CAMPOS</small><strong>G Tech no Belém Studio</strong></div><span class="scene-price">R$ 79,99</span></div>
           </div>
           <div class="scene-tag tag-left">Sites <b>que conectam.</b></div><div class="scene-tag tag-right">NFC <b>sem complicação.</b></div>
         </div>
@@ -127,6 +128,15 @@
         <p>Conheça demonstrações dos nossos produtos e veja de perto como as soluções da G Tech funcionam na prática.</p>
       </div>
       <div class="portfolio-grid">
+        <article class="portfolio-card portfolio-feature reveal" id="video-belem-studio">
+          <div class="portfolio-player">
+            <video controls playsinline preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração presencial da G Tech no Belém Studio, Batista Campos">
+              <source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4">Seu navegador não suporta este vídeo MP4.
+            </video>
+          </div>
+          <div class="portfolio-detail"><div><small>01 • DEMONSTRAÇÃO PRESENCIAL • BATISTA CAMPOS</small><h3>G Tech no Belém Studio</h3><p>Apresentação real do produto e de sua utilização, gravada presencialmente.</p></div>
+          <div class="portfolio-links"><a href="#contato" class="pill-cta" data-product="Placa NFC Personalizada">Quero meu NFC ↗</a><span class="portfolio-real-label">Vídeo com explicação real</span></div></div>
+        </article>
         <article class="portfolio-card portfolio-feature reveal">
           <div class="portfolio-player">
             {% if nfc_demo_video_available %}
@@ -139,7 +149,7 @@
             {% endif %}
           </div>
           <div class="portfolio-detail">
-            <div><small>DEMONSTRAÇÃO REAL • NFC</small><h3>Seu negócio a um toque.</h3><p>Veja a plaquinha NFC sendo utilizada com um celular. Produto físico com configuração digital.</p></div>
+            <div><small>02 • NFC EM AÇÃO</small><h3>Seu negócio a um toque.</h3><p>Veja a plaquinha NFC sendo utilizada com um celular. Produto físico com configuração digital.</p></div>
             <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Quero meu NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1wcl786wroufMreLbvlOhb_b6Iit4hsGo/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
           </div>
         </article>
@@ -155,7 +165,7 @@
             {% endif %}
           </div>
           <div class="portfolio-detail">
-            <div><small>PROJETO REAL • CARDÁPIO DIGITAL</small><h3>Cardápio premium de verdade.</h3><p>Uma gravação real da experiência, com navegação pelos produtos e organização do cardápio.</p></div>
+            <div><small>03 • CARDÁPIO DIGITAL</small><h3>Cardápio premium de verdade.</h3><p>Uma gravação real da experiência, com navegação pelos produtos e organização do cardápio.</p></div>
             <div class="portfolio-links"><a href="#contato" data-product="Cardápio Digital Premium" class="pill-cta">Quero um cardápio ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1THqga9D2sJsyuU0ahdSlJhOZ78St9K5g/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
           </div>
         </article>
@@ -171,7 +181,7 @@
             {% endif %}
           </div>
           <div class="portfolio-detail">
-            <div><small>PRODUTO REAL • NFC</small><h3>Google e Instagram a um toque.</h3><p>Plaquinhas NFC para aproximar o cliente dos canais digitais do negócio.</p></div>
+            <div><small>04 • NFC PARA REDES SOCIAIS</small><h3>Google e Instagram a um toque.</h3><p>Plaquinhas NFC para aproximar o cliente dos canais digitais do negócio.</p></div>
             <div class="portfolio-links"><a href="#contato" data-product="Placa NFC Personalizada" class="pill-cta">Pedir NFC ↗</a>{% if drive_preview_enabled %}<a class="portfolio-original" href="https://drive.google.com/file/d/1FaFlcsZU81_6xZo7rWZUfjeyAbuOm-kM/view" target="_blank" rel="noopener noreferrer">Ver vídeo original</a>{% endif %}</div>
           </div>
         </article>
