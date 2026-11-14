@@ -63,7 +63,8 @@ try:
             assert page.locator(".hero video#showcase-video").count()==1, "Belém Studio must feature in hero"
             assert page.locator("#video-belem-studio video source").get_attribute("src").endswith("/static/media/belem-studio-nfc.mp4")
             assert page.locator("iframe").count()==0, "External player must never be required"
-            assert page.locator("fieldset.briefing-fields").is_disabled(), "Preview must not collect live personal data"
+            assert page.locator("fieldset.briefing-fields").get_attribute("disabled") is not None, "Preview fieldset must be disabled"
+            assert page.locator("#quote-form input[name=nome]").is_disabled(), "Preview must not collect live personal data"
             assert page.locator("#cookie-notice").is_visible(), "Cookie consent choice missing"
             page.screenshot(path=str(DEST/f"{label}_cookies.png"))
             page.locator('[data-cookie-choice="essential"]').click()
