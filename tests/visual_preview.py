@@ -76,7 +76,14 @@ try:
             images=page.locator("#depoimentos .review-proof img")
             page.wait_for_function("Array.from(document.querySelectorAll('#depoimentos .review-proof img')).every(img=>img.complete && img.naturalWidth>0)",timeout=10000)
             assert images.count()==2
-            # Make all below-the-fold content visible in full-page screenshot, BEFORE replacing a teaser with a blocked iframe.
+            # Ensure images are decoded and actually painted in the viewport before full-page capture.
+            page.evaluate("Promise.all(Array.from(document.querySelectorAll('#depoimentos .review-proof img')).map(img=>img.decode()))")
+            page.locator("#depoimentos").scroll_into_view_if_needed()
+            page.wait_for_timeout(250)
+            page.screenshot(path=str(DEST/f"{label}_feedbacks.png"),animations="disabled")
+            page.locator("#projetos").scroll_into_view_if_needed()
+            page.wait_for_timeout(250)
+            page.screenshot(path=str(DEST/f"{label}_portfolio.png"),animations="disabled")
             page.evaluate("document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'))")
             page.screenshot(path=str(DEST/f"{label}_full.png"),full_page=True,animations="disabled",timeout=30000)
             mp4=page.request.get("http://127.0.0.1:5073/static/media/belem-studio-nfc.mp4")
