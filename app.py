@@ -632,7 +632,10 @@ def create_lead():
     if excessive_lead_submissions(request.remote_addr or "unknown"):
         return Response("Muitas tentativas. Aguarde alguns minutos antes de enviar novamente.", status=429)
     if request.form.get("consentimento") != "yes":
-        flash("É necessário autorizar o uso dos dados para responder ao orçamento.", "error")
+        flash("É necessário confirmar a Política de Privacidade para enviar o orçamento.", "error")
+        return redirect(url_for("index") + "#contato")
+    if request.form.get("termos") != "yes":
+        flash("Leia e aceite os Termos de Uso da G Tech antes de enviar o orçamento.", "error")
         return redirect(url_for("index") + "#contato")
 
     nome = clean_text(request.form.get("nome"), 120)
@@ -673,7 +676,7 @@ def create_lead():
     )
     db.session.add(lead)
     db.session.flush()
-    db.session.add(ConsentEvidence(lead_id=lead.id, purpose="budget", privacy_version="2026-11-16"))
+    db.session.add(ConsentEvidence(lead_id=lead.id, purpose="budget", privacy_version="2026-11-16", terms_version="2026-11-16"))
     db.session.commit()
     # Do not fail the customer journey when the CRM integration is unavailable.
     sync_lead_to_crm(lead, cidade)
