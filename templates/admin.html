@@ -51,7 +51,7 @@
       <table>
         <thead>
           <tr>
-            <th>Lead</th><th>Contato</th><th>Negócio</th><th>Serviço</th><th>Prazo</th><th>Objetivo</th><th>Origem</th><th>Status</th>
+            <th>Lead</th><th>Contato</th><th>Negócio</th><th>Serviço</th><th>Prazo</th><th>Objetivo</th><th>Origem</th><th>Status</th><th>CRM G Tech</th>
           </tr>
         </thead>
         <tbody>
@@ -72,9 +72,20 @@
                 <button type="submit">Salvar</button>
               </form>
             </td>
+            <td>
+              {% set delivery = deliveries.get(lead.id) %}
+              {% if delivery and delivery.status == 'delivered' %}<strong>Enviado ✓</strong>
+              {% else %}
+                <span>Não sincronizado</span>
+                <form method="post" action="{{ url_for('retry_lead_crm', lead_id=lead.id) }}">
+                  <input type="hidden" name="admin_csrf" value="{{ admin_csrf }}">
+                  <button type="submit">Reenviar ao CRM</button>
+                </form>
+              {% endif %}
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="8">Nenhum lead encontrado.</td></tr>
+          <tr><td colspan="9">Nenhum lead encontrado.</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -97,6 +108,14 @@
           <select name="status">{% for key, label in status_labels.items() %}<option value="{{ key }}" {% if lead.status == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select>
           <button type="submit">Salvar</button>
         </form>
+        {% set delivery = deliveries.get(lead.id) %}
+        <p><strong>CRM:</strong> {{ 'Enviado ✓' if delivery and delivery.status == 'delivered' else 'Pendente' }}</p>
+        {% if not delivery or delivery.status != 'delivered' %}
+        <form method="post" action="{{ url_for('retry_lead_crm', lead_id=lead.id) }}">
+          <input type="hidden" name="admin_csrf" value="{{ admin_csrf }}">
+          <button type="submit">Reenviar ao CRM</button>
+        </form>
+        {% endif %}
       </article>
       {% else %}<article class="admin-card glass">Nenhum lead encontrado.</article>{% endfor %}
     </section>
