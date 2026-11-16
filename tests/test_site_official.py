@@ -133,11 +133,51 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(Lead.query.count(), 0)
             self.assertEqual(ConsentEvidence.query.count(), 0)
 
-    def test_rejects_missing_csrf(self):
-        data = self.lead_data()
-        data["csrf_token"] = ""
-        response = self.client.post("/lead", data=data)
-        self.assertEqual(response.status_code, 400)
+    def test_expired_or_missing_csrf_is_safe_and_customer_friendly(self):
+        for bad_token in ["", "stale-token-from-old-tab"]:
+            payload = self.lead_data()
+            payload["csrf_token"] = bad_token
+            response = self.client.post("/lead", data=payload)
+            self.assertEqual(response.status_code, 303)
+            self.assertIn("#contato", response.location)
+            page = self.client.get("/")
+            self.assertIn("Sua sessão de segurança expirou", page.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(Lead.query.count(), 0)
+                self.assertEqual(ConsentEvidence.query.count(), 0)
+
+    def test_fresh_security_token_repairs_expired_cookie_before_submit(self):
+        original = self.csrf()
+        with self.client.session_transaction() as sess:
+            sess.pop("lead_csrf", None)
+        token_response = self.client.get("/api/form-token")
+        self.assertEqual(token_response.status_code, 200)
+        self.assertIn("no-store", token_response.headers.get("Cache-Control", ""))
+        self.assertIn("private", token_response.headers.get("Cache-Control", ""))
+        token = token_response.json["csrf_token"]
+        self.assertTrue(len(token) >= 30)
+        self.assertNotEqual(token, original)
+        payload = self.lead_data()
+        payload["csrf_token"] = token
+        with patch("urllib.request.urlopen", side_effect=AssertionError("Network used")):
+            response = self.client.post("/lead", data=payload)
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(response.location.endswith("/obrigado"))
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 1)
+
+    def test_honeypot_form_autofill_rejected_without_bad_request(self):
+        page = self.client.get("/").get_data(as_text=True)
+        self.assertIn('name="form_guard_9"', page)
+        self.assertNotIn('name="website"', page)
+        for field in ["form_guard_9", "website"]:
+            payload = self.lead_data()
+            payload[field] = "auto-filled-example.invalid"
+            response = self.client.post("/lead", data=payload)
+            self.assertEqual(response.status_code, 303)
+            self.assertIn("#contato", response.location)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
 
     def test_admin_requires_auth_and_csrf(self):
         self.assertEqual(self.client.get("/admin/leads").status_code, 401)

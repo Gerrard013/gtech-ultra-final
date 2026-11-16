@@ -22,7 +22,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='official.css') }}">
-  <script defer src="{{ url_for('static', filename='official.js') }}"></script>
+  <script defer src="{{ url_for('static', filename='official.js', v='20261116-form400') }}"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"{{ public_site_url }}/","logo":"{{ public_site_url }}/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
 <body>
@@ -206,7 +206,7 @@
             <input type="hidden" name="origem" id="origem" value="site_oficial_v3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <input type="hidden" name="prazo" value="Estou pesquisando">
-            <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+            <div class="honeypot" aria-hidden="true"><label>Deixe em branco<input type="text" name="form_guard_9" tabindex="-1" autocomplete="off"></label></div>
             {% with messages = get_flashed_messages(with_categories=true) %}{% if messages %}<div class="form-flashes" role="alert">{% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
             <p class="form-instruction">4 informações para iniciar. Sem cobrança, sem compromisso.</p>
             <fieldset class="briefing-fields">

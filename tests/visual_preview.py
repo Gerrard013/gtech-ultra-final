@@ -122,7 +122,36 @@ try:
             overflow=page.evaluate("document.documentElement.scrollWidth-window.innerWidth")
             assert overflow<=3, f"Horizontal scroll overflow of {overflow}px on {label}"
             assert not errors, "Page JS errors: "+"; ".join(errors)
-            print(f"PASS {label}: 6 services, 4 self-hosted videos, cookies, repeatable intro, no overflow")
+            # Simulate production-mode form submission entirely in the local browser.
+            # No contact information or POST is sent to a server by this check.
+            page.locator("#quote-form input[name=nome]").fill("Cliente Demonstração")
+            page.locator("#quote-form input[name=whatsapp]").fill("(91) 98273-6418")
+            page.locator("#quote-form select[name=servico]").select_option(label="Placa NFC Personalizada")
+            page.locator("#quote-form textarea[name=objetivo]").fill("Preciso de NFC para agendar uma demonstração de produto.")
+            page.locator('#quote-form input[name="consentimento"]').check()
+            page.locator('#quote-form input[name="termos"]').check()
+            page.evaluate("""() => {
+                const form=document.querySelector('#quote-form');
+                form.dataset.demo='false';
+                window.__leadTest={};
+                window.fetch=async (url, options) => {
+                  window.__leadTest.url=url;
+                  window.__leadTest.credentials=options.credentials;
+                  window.__leadTest.cache=options.cache;
+                  return {ok:true, json:async()=>({csrf_token:'test-refreshed-token-12345678901234567890'})};
+                };
+                HTMLFormElement.prototype.submit=function(){
+                  window.__leadTest.token=this.querySelector('input[name="csrf_token"]').value;
+                  window.__leadTest.submitCalled=true;
+                };
+            }""")
+            page.locator("#quote-form .form-submit").click()
+            page.wait_for_function("window.__leadTest.submitCalled === true")
+            proof=page.evaluate("window.__leadTest")
+            assert proof["url"]=="/api/form-token", "Form must refresh CSRF before submitting"
+            assert proof["credentials"]=="same-origin" and proof["cache"]=="no-store", "CSRF refresh must be private"
+            assert proof["token"]=="test-refreshed-token-12345678901234567890", "Refreshed token was not attached"
+            print(f"PASS {label}: editable form, cookie preference, secure CSRF refresh, no network to live users")
             page.close()
         browser.close()
 finally:

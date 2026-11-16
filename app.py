@@ -676,6 +676,17 @@ def sync_lead_to_crm(lead: Lead, city: str) -> bool:
         return False
 
 
+@app.get("/api/form-token")
+def fresh_lead_form_token():
+    """Refresh an expired/stale form token before submitting; never expose credentials."""
+    if "lead_csrf" not in session:
+        session["lead_csrf"] = secrets.token_urlsafe(32)
+    response = app.json.response({"csrf_token": session["lead_csrf"]})
+    response.headers["Cache-Control"] = "no-store, private"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+
 @app.post("/lead")
 def create_lead():
     if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
@@ -684,9 +695,18 @@ def create_lead():
     token = request.form.get("csrf_token", "")
     expected_token = session.get("lead_csrf", "")
     if not token or not expected_token or not secrets.compare_digest(token, expected_token):
-        abort(400)
-    if request.form.get("website"):
-        abort(400)
+        # Do not weaken CSRF checks. Recover with a fresh session and a clear message,
+        # instead of leaving a real customer on the default 400 error page.
+        app.logger.warning("G Tech quote rejected: stale_or_missing_csrf (no PII logged)")
+        session.pop("lead_csrf", None)
+        flash("Sua sessão de segurança expirou. Abra o formulário novamente e reenvie. Nenhum pedido foi cadastrado.", "error")
+        return redirect(url_for("index") + "#contato", code=303)
+    if request.form.get("website") or request.form.get("form_guard_9"):
+        # Password managers sometimes auto-fill inputs named 'website'; keep
+        # recognizing legacy submissions but give the customer a safe retry.
+        app.logger.warning("G Tech quote rejected: anti_spam_field (no PII logged)")
+        flash("Não foi possível validar o formulário. Atualize a página e tente novamente.", "error")
+        return redirect(url_for("index") + "#contato", code=303)
     if excessive_lead_submissions(request.remote_addr or "unknown"):
         return Response("Muitas tentativas. Aguarde alguns minutos antes de enviar novamente.", status=429)
     if request.form.get("consentimento") != "yes":
