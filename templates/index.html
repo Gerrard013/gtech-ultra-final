@@ -228,7 +228,9 @@
                 <label>Sua cidade<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém"></label>
               </details>
               <label class="consent"><input type="checkbox" name="consentimento" value="yes" required>
-                <span>Autorizo utilizar meus dados somente para responder a este orçamento. <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de privacidade.</a></span></label>
+                <span>Autorizo a G Tech a usar os dados informados para responder a este orçamento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não autorizo campanhas de publicidade por este campo.</span></label>
+              <label class="consent"><input type="checkbox" name="termos" value="yes" required>
+                <span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de Uso e de Serviço da G Tech</a>, sem prejuízo dos meus direitos legais.</span></label>
               <button class="btn btn-solid form-submit" type="submit">Pedir orçamento gratuito <span aria-hidden="true">↗</span></button>
             </fieldset>
             {% if drive_preview_enabled %}<p class="preview-form-message" id="quote-demo-result" role="status" aria-live="polite"><strong>Homologação:</strong> você pode digitar e testar com dados fictícios. Nenhum dado é enviado, salvo ou cobrado aqui. Para um orçamento real, use o WhatsApp.</p>{% endif %}
