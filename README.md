@@ -1,5 +1,5 @@
 # G TECH | SITE OFICIAL ÚNICO — Versão 2.0
-**Ambiente oficial:** https://gtech-ultra-final-production.up.railway.app/  
+**Ambiente oficial:** https://gtech-oficial.up.railway.app/\n**Alteração de domínio:** a URL antiga `gtech-ultra-final-production` deixará de funcionar ao renomear o domínio Railway; atualizar todos os links de campanhas, bio e mensagens.  
 **Repositório oficial:** \`Gerrard013/gtech-ultra-final\`  
 **Status:** desenvolvimento em branch de revisão. Nenhuma publicação automática na produção.
 
