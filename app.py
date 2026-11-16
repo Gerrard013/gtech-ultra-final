@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import fcntl
 import hashlib
 import hmac
 import io
@@ -311,8 +312,20 @@ def _verified_mercadopago_webhook(payment_id: str) -> bool:
     return hmac.compare_digest(expected.lower(), v1.lower())
 
 
+# Synchronize one-time SQLite schema bootstrapping across Gunicorn processes.
+# PostgreSQL is the required production destination; the lock prevents table
+# creation races without wiping or replacing any existing SQLite records.
 with app.app_context():
-    db.create_all()
+    if db.engine.url.get_backend_name().startswith("sqlite"):
+        lock_path = os.path.join(INSTANCE_DIR, "gtech_schema.lock")
+        with open(lock_path, "a+", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                db.create_all()
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    else:
+        db.create_all()
 
 
 CONTACTS = {
