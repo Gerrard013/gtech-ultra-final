@@ -10,13 +10,13 @@
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:site_name" content="G Tech | Innovation &amp; Solutions">
-  <meta property="og:title" content="G Tech | Sites, NFC e soluções digitais">
+  <meta property="og:title" content="G Tech Oficial | Sites, NFC e soluções digitais">
   <meta property="og:description" content="Tecnologia real para destacar o seu negócio. Conheça projetos e peça um orçamento com a G Tech.">
   <meta property="og:url" content="https://gtech-ultra-final-production.up.railway.app/">
   <meta property="og:image" content="{{ url_for('static',filename='assets/og-gtech.jpg',_external=True) }}">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="color-scheme" content="dark">
-  <title>G Tech Belém | Plaquinhas NFC, Sites e Google Maps</title>
+  <title>G Tech Oficial | NFC, Sites e Google Maps em Belém</title>
   <link rel="icon" href="{{ url_for('static',filename='assets/favicon.png') }}" type="image/png">
   <link rel="preload" as="image" href="{{ url_for('static',filename='assets/gtech-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -229,7 +229,7 @@
               </details>
               <label class="consent"><input type="checkbox" name="consentimento" value="yes" required>
                 <span>Autorizo a G Tech a usar os dados informados para responder a este orçamento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não autorizo campanhas de publicidade por este campo.</span></label>
-              <label class="consent"><input type="checkbox" name="termos" value="yes" required>
+              <label class="consent consent-terms"><input type="checkbox" name="termos" value="yes" required aria-label="Li e aceito os Termos de Uso da G Tech">
                 <span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de Uso e de Serviço da G Tech</a>, sem prejuízo dos meus direitos legais.</span></label>
               <button class="btn btn-solid form-submit" type="submit">Pedir orçamento gratuito <span aria-hidden="true">↗</span></button>
             </fieldset>
