@@ -82,3 +82,24 @@ Coletar: modelo exato (ex. A1 Combo, não A1 mini), condição nova/lacrada, gar
 4. Passar ao Instagram e WhatsApp enquanto se prepara o checkout sandbox.
 
 O propósito do plano é faturar com segurança, não executar 100 alterações sem critérios de aceite.
+
+## Atualização — Gateway Mercado Pago + CRM, 16/11/2026
+**Código preparado, não implantado na produção.**
+- Site oficial, PR #1: Checkout Pro com formulário mobile, proteção CSRF, valores no servidor, ponte autenticada para MetaSimples e página de status que não confia no retorno do navegador.
+- MetaSimples, PR #1: correção da liberação insegura por status da URL; ponte HMAC no endpoint /api/gtech/checkout; pedidos próprios, verificação da assinatura de webhook e reconciliação de valor, moeda e status exclusivamente pela API Mercado Pago.
+- CRM, PR #16: nomes AURORA (orquestração), VÉRTICE (vendas), PRISMA (financeiro), ARGOS (segurança), com NEXO, LUMEN, ÓRBITA e LEX documentados; aceita cardápio e automação como orçamento sem atribuir preço fictício.
+- Checkout desativado por padrão até que o CEO e o responsável técnico validem recebedor real, credenciais, armazenamento durável, conta bancária, webhook e termos fiscais. Site usa GTECH_CHECKOUT_ENABLED; MetaSimples usa GTECH_STORE_CHECKOUT_ENABLED.
+- Preços fixos no servidor: foto R$10 e Google R$150 (links de compra preparados); NFC R$79,99 aguarda frete/estoque; site R$500 requer proposta; manutenção R$149,99/mês NÃO está configurada como assinatura automática.
+- WhatsApp: aba conectada apresenta Maker Blue 3D Fornecedor, grupo Tá em Oferta #3D 20 e Rodrigo Impressao 3D, mas apenas prévias das conversas são legíveis até o usuário abri-las. Não confiar na promessa irrestrita de reembolso pelo Mercado Livre.
+- A compra de Bambu Lab A1 precisa diferenciar versão regular e Combo com AMS Lite; conferir vendedor, NF, garantia, preço final no cartão, frete, proteção da plataforma e nenhum pagamento externo.
+
+### Gates obrigatórios antes do fluxo real
+1. Confirmar backup/restauração e conexão durável do banco de leads do site.
+2. Confirmar que a conta Mercado Pago recebedora e credenciais de produção pertencem à empresa desejada.
+3. Configurar segredo compartilhado forte e idêntico nos dois serviços Railway; não compartilhar em chat/repositório.
+4. Testar webhook e pagamento, sem usar status de URL como prova; validar Pix/cartão, cancelamentos e reembolsos.
+5. Conferir catálogo, estoque/frete, enquadramento MEI, condições de prestação e notas fiscais.
+6. Aprovar explicitamente merge/deploy, flags, Instagram e cobrança.
+
+### Ordem de execução mantida
+SITE + CRM + MERCADO PAGO -> Instagram -> vídeos/posts e programação -> WhatsApp Business -> impressão 3D como compra financeira em paralelo.
