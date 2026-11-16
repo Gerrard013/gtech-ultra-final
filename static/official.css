@@ -264,3 +264,9 @@ h1,h2,h3,.section-head h2,.hero h1,.spotlight h2,.contact-copy h2,.final-content
  .intro-logo{animation:none!important}
  .intro-center{animation:none!important}
 }
+
+/* Payment link is visible only when the secure bridge is explicitly enabled. */
+.service-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.service-buy{background:linear-gradient(115deg,#30e1f1,#6f9af0);color:#051726;border-color:transparent}
+.service-buy:hover{filter:brightness(1.08)}
+@media(max-width:650px){.service-actions{width:100%;justify-content:flex-start}.service-foot{align-items:flex-start;flex-direction:column}.service-actions a{min-height:42px}}
