@@ -185,6 +185,7 @@ def _secure_db_available() -> bool:
 
 def _checkout_enabled() -> bool:
     return (os.getenv("GTECH_CHECKOUT_ENABLED", "false").lower() == "true"
+            and os.getenv("MERCADOPAGO_CNPJ_VERIFIED", "false").lower() == "true"
             and os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() != "preview"
             and _mp_credentials_ready() and _secure_db_available())
 
@@ -227,7 +228,11 @@ def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, reque
 
 
 def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
-    """The price is read from the persisted order, not from the request/browser."""
+    """Verify MP account owner, then create preference from a persisted order only."""
+    merchant = _mp_request("/users/me")
+    expected_collector = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
+    if not expected_collector or str(merchant.get("id") or "") != expected_collector:
+        raise RuntimeError("A conta recebedora do Mercado Pago não corresponde ao CNPJ configurado")
     base = PUBLIC_SITE_URL
     item = {
         "id": order.sku,
@@ -251,6 +256,9 @@ def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
     }
     result = _mp_request("/checkout/preferences", payload, request_id=order.id)
     checkout_url = str(result.get("init_point") or "")
+    if (result.get("collector_id") is not None
+            and str(result["collector_id"]) != expected_collector):
+        raise RuntimeError("O checkout retornou um recebedor diferente")
     if not _is_mercadopago_link(checkout_url):
         raise ValueError("Checkout inválido devolvido pelo gateway")
     return checkout_url

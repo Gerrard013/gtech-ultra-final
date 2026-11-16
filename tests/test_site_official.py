@@ -333,6 +333,9 @@ class OfficialSiteTests(unittest.TestCase):
             def __exit__(self,*_args): return False
 
         def fake_urlopen(req, timeout):
+            if req.full_url == "https://api.mercadopago.com/users/me":
+                self.assertEqual(req.get_method(), "GET")
+                return FakeHTTP(json.dumps({"id": 12345678}).encode("utf-8"))
             payload=json.loads(req.data.decode("utf-8"))
             self.assertEqual(req.full_url,"https://api.mercadopago.com/checkout/preferences")
             self.assertEqual(req.get_method(),"POST")
@@ -354,6 +357,7 @@ class OfficialSiteTests(unittest.TestCase):
             "MERCADOPAGO_ACCESS_TOKEN":"APP_USR-test-credential-not-valid",
             "MERCADOPAGO_WEBHOOK_SECRET":"unit-test-key-gtech-signed-webhook-only",
             "MERCADOPAGO_COLLECTOR_ID":"12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED":"true",
             "RAILWAY_ENVIRONMENT":"production",
         }
         with patch.dict(os.environ,env), patch("app._secure_db_available",return_value=True):
@@ -377,6 +381,38 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(order.total_cents,1000)
             self.assertEqual(order.status,"pending")
             self.assertEqual(Lead.query.count(),1)
+
+    def test_cnpj_confirmation_required_even_if_checkout_flag_and_secrets_set(self):
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-unit-test-only",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-hmac-key-longer-than-16",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "false",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            self.assertEqual(self.client.get("/comprar/foto").status_code, 503)
+
+    def test_checkout_refuses_wrong_merchant_even_when_credentials_are_present(self):
+        from app import _create_mercadopago_preference, CheckoutOrder
+        from unittest.mock import MagicMock
+        env = {"MERCADOPAGO_COLLECTOR_ID": "12345678"}
+        order = CheckoutOrder(id="00000000-0000-4000-8000-000000000000",
+                              lead_id=1, sku="foto", quantity=1, total_cents=1000,
+                              status="pending")
+        with patch.dict(os.environ, env):
+            with patch("app._mp_request", return_value={"id": 99999}) as request_mock:
+                with self.assertRaises(RuntimeError):
+                    _create_mercadopago_preference(order, "Restauração de foto")
+                request_mock.assert_called_once_with("/users/me")
+            with patch("app._mp_request", side_effect=[
+                {"id": 12345678},
+                {"id": "test-pref", "collector_id": 99999,
+                 "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?id=mock"}
+            ]):
+                with self.assertRaises(RuntimeError):
+                    _create_mercadopago_preference(order, "Restauração de foto")
 
     def test_payment_api_verifies_amount_merchant_and_reference(self):
         from app import CheckoutOrder, _reconcile_mercadopago_payment
