@@ -35,7 +35,8 @@ body{background:#06111f}.checkout-top{padding:18px;max-width:940px;margin:auto;d
 <label>Seu nome completo <input name="nome" required maxlength="100" autocomplete="name" placeholder="Nome e sobrenome"></label>
 <label>WhatsApp com DDD <input name="whatsapp" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX"></label>
 <label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o tratamento dos meus dados para registrar este pedido, responder a dúvidas e acompanhar o serviço. Não é autorização para campanhas. <a href="{{ url_for('privacy_policy') }}">Privacidade</a>.</span></label>
-{% if preview_only %}<p role="status" class="alert">PRÉVIA DE DESIGN: esta tela não coleta pedidos nem processa pagamentos.</p><button type="button" disabled aria-disabled="true" style="opacity:.5;cursor:not-allowed">Pagamento indisponível na prévia</button>{% else %}<label class="consent"><input type="checkbox" name="termos" value="yes" required><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>. Meus direitos legais de consumidor continuam protegidos.</span></label>
+<label class="consent"><input type="checkbox" name="termos" value="yes" required><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>. Meus direitos legais de consumidor continuam protegidos.</span></label>
+{% if preview_only %}<p role="status" class="alert">HOMOLOGAÇÃO: esta tela não coleta pedidos nem processa pagamentos.</p><button type="button" disabled aria-disabled="true" style="opacity:.5;cursor:not-allowed">Pagamento indisponível na homologação</button>{% else %}
 <button type="submit">Ir ao Mercado Pago ↗</button>{% endif %}
 </form>
 <p>Não há cobrança nesta tela. Pagamentos só são efetuados após sua confirmação no Mercado Pago.</p>
