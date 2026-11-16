@@ -14,6 +14,7 @@ import uuid
 import time
 import urllib.request
 from datetime import datetime
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from collections import defaultdict, deque
 from functools import wraps
 from urllib.parse import quote, urlsplit
@@ -116,38 +117,43 @@ class CheckoutOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
-# Deliberately short list. The others require scope or logistics confirmation.
-# Prices are server-side and repeated for verification by MetaSimples.
-CHECKOUT_OFFERS = {
-    "foto": {"title": "Restauração de fotografia", "cents": 1000, "description": "Restauração de uma foto. O arquivo é enviado após a compra."},
-    "google": {"title": "Perfil da Empresa no Google", "cents": 15000, "description": "Organização de perfil elegível; não inclui garantia de posição ou aprovação."},
-}
+# The catalogue is the single source of prices for both storefront and Checkout Pro.
+# Prices in cents are edited in config/catalogo_gtech.json, NEVER in checkout URLs.
+with open(os.path.join(BASE_DIR, "config", "catalogo_gtech.json"), encoding="utf-8") as catalog_file:
+    CATALOGO_GTECH = json.load(catalog_file)
+
+CATALOG_PRODUCTS = CATALOGO_GTECH["produtos"]
+CHECKOUT_OFFERS = {}
+for _sku, _item in CATALOG_PRODUCTS.items():
+    _cents = _item.get("preco_centavos")
+    if _item.get("checkout_direto"):
+        if not isinstance(_cents, int) or isinstance(_cents, bool) or _cents <= 0:
+            raise ValueError("Preço de checkout inválido no catálogo: " + _sku)
+        CHECKOUT_OFFERS[_sku] = {
+            "title": _item["titulo"],
+            "cents": _cents,
+            "description": _item.get("observacao", ""),
+        }
+
+
+def _mp_credentials_ready() -> bool:
+    """Only a dedicated production G Tech merchant account can receive payments."""
+    token = os.getenv("MERCADOPAGO_ACCESS_TOKEN", "").strip()
+    signature_key = os.getenv("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
+    collector_id = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
+    return (token.startswith("APP_USR-") and len(signature_key) >= 16
+            and collector_id.isdigit() and len(collector_id) >= 4)
+
+
+def _secure_db_available() -> bool:
+    """Do not accept money if storage is an ephemeral SQLite volume."""
+    return db.engine.url.get_backend_name().startswith("postgresql")
 
 
 def _checkout_enabled() -> bool:
-    return os.getenv("GTECH_CHECKOUT_ENABLED", "false").lower() == "true"
-
-
-def _meta_bridge_url() -> str:
-    # Fixed allowlist: never forward customer requests to arbitrary hosts.
-    return "https://metasimples-production.up.railway.app"
-
-
-def _checkout_bridge_secret() -> str:
-    return os.getenv("GTECH_CHECKOUT_SHARED_SECRET", "").strip()
-
-
-def _signed_gateway_request(path: str, body: bytes | None = None) -> urllib.request.Request:
-    secret = _checkout_bridge_secret()
-    if len(secret) < 32:
-        raise RuntimeError("Ponte de pagamento não configurada.")
-    raw = (b"status:" + path.rsplit("/", 1)[-1].encode()) if body is None else body
-    signature = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
-    return urllib.request.Request(
-        _meta_bridge_url() + path, data=body,
-        method="POST" if body is not None else "GET",
-        headers={"X-GTech-Signature": "sha256=" + signature, "Content-Type": "application/json"}
-    )
+    return (os.getenv("GTECH_CHECKOUT_ENABLED", "false").lower() == "true"
+            and os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() != "preview"
+            and _mp_credentials_ready() and _secure_db_available())
 
 
 def _is_mercadopago_link(url: str) -> bool:
@@ -160,6 +166,122 @@ def _is_mercadopago_link(url: str) -> bool:
         )
     except ValueError:
         return False
+
+
+def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, request_id: str = "") -> dict:
+    """Server-side Mercado Pago API. Never log the access token or return API error bodies."""
+    token = os.getenv("MERCADOPAGO_ACCESS_TOKEN", "").strip()
+    if not token:
+        raise RuntimeError("Mercado Pago não configurado")
+    payload = json.dumps(data, separators=(",", ":")).encode("utf-8") if data is not None else None
+    headers = {"Authorization": "Bearer " + token, "Accept": "application/json"}
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+        if request_id:
+            headers["X-Idempotency-Key"] = request_id
+    req = urllib.request.Request(
+        "https://api.mercadopago.com" + path,
+        data=payload, headers=headers,
+        method="POST" if payload is not None else "GET"
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as reply:
+        if getattr(reply, "status", 200) >= 400:
+            raise RuntimeError("Mercado Pago recusou operação")
+        data = json.load(reply)
+    if not isinstance(data, dict):
+        raise ValueError("Resposta inesperada do gateway")
+    return data
+
+
+def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
+    """The price is read from the persisted order, not from the request/browser."""
+    base = "https://gtech-ultra-final-production.up.railway.app"
+    item = {
+        "id": order.sku,
+        "title": title,
+        "currency_id": "BRL",
+        "quantity": order.quantity,
+        "unit_price": order.total_cents / (100 * order.quantity),
+    }
+    payload = {
+        "items": [item],
+        "external_reference": "GTECH-" + order.id,
+        "notification_url": base + "/webhooks/mercadopago",
+        "back_urls": {
+            "success": base + "/pedido/" + order.id + "?retorno=sucesso",
+            "pending": base + "/pedido/" + order.id + "?retorno=pendente",
+            "failure": base + "/pedido/" + order.id + "?retorno=erro",
+        },
+        "auto_return": "approved",
+        "statement_descriptor": "GTECH",
+        "metadata": {"gtech_order_id": order.id, "gtech_sku": order.sku},
+    }
+    result = _mp_request("/checkout/preferences", payload, request_id=order.id)
+    checkout_url = str(result.get("init_point") or "")
+    if not _is_mercadopago_link(checkout_url):
+        raise ValueError("Checkout inválido devolvido pelo gateway")
+    return checkout_url
+
+
+def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bool:
+    """Only Mercado Pago's authenticated API can set order.status = approved."""
+    if not re.fullmatch(r"[0-9]{1,25}", str(payment_id)):
+        return False
+    data = _mp_request("/v1/payments/" + str(payment_id))
+    external_reference = str(data.get("external_reference") or "")
+    if not external_reference.startswith("GTECH-"):
+        return False
+    pid = external_reference.removeprefix("GTECH-")
+    if order_id and pid != order_id:
+        return False
+    order = db.session.get(CheckoutOrder, pid)
+    if not order:
+        return False
+    if data.get("currency_id") != "BRL" or str(data.get("collector_id")) != os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip():
+        app.logger.warning("Mercado Pago: recebedor/moeda divergem do pedido %s", pid)
+        return False
+    try:
+        received_cents = int((Decimal(str(data.get("transaction_amount"))) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+    if received_cents != order.total_cents:
+        app.logger.warning("Mercado Pago: valor divergente no pedido %s", pid)
+        return False
+    status = str(data.get("status") or "")
+    allowed = {"approved", "pending", "in_process", "rejected", "cancelled", "refunded", "charged_back"}
+    if status not in allowed:
+        return False
+    if status in {"refunded", "charged_back"}:
+        # A later reversal may invalidate a previously approved payment.
+        order.status = status
+    elif order.status not in {"approved", "refunded", "charged_back"}:
+        order.status = status
+    db.session.commit()
+    return True
+
+
+def _verified_mercadopago_webhook(payment_id: str) -> bool:
+    """Validate x-signature manifest before requesting payment details from API."""
+    secret = os.getenv("MERCADOPAGO_WEBHOOK_SECRET", "").strip()
+    if not secret:
+        return False
+    signature = request.headers.get("X-Signature", "")
+    request_id = request.headers.get("X-Request-Id", "")
+    if not request_id or not signature:
+        return False
+    fields = {}
+    for entry in signature.split(","):
+        if "=" in entry:
+            k, v = entry.split("=", 1)
+            fields[k.strip()] = v.strip()
+    ts, v1 = fields.get("ts", ""), fields.get("v1", "")
+    if not ts.isdigit() or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
+        return False
+    if abs(time.time() - int(ts) / 1000) > 300:
+        return False
+    manifest = f"id:{payment_id.lower()};request-id:{request_id};ts:{ts};"
+    expected = hmac.new(secret.encode("utf-8"), manifest.encode("utf-8"), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected.lower(), v1.lower())
 
 
 with app.app_context():
@@ -217,6 +339,17 @@ SERVICES = [
         "description": "Organização de processos e projetos digitais sob medida, sujeitos a análise de escopo e enquadramento do serviço."
     },
 ]
+
+# Keep public price labels synchronized with the same catalogue used by payment logic.
+for _service in SERVICES:
+    _catalog_item = CATALOG_PRODUCTS.get(_service["id"])
+    if _catalog_item:
+        _service["price"] = _catalog_item["preco_exibicao"]
+        if _catalog_item.get("checkout_direto"):
+            _service["checkout_sku"] = _service["id"]
+        else:
+            _service.pop("checkout_sku", None)
+
 
 FEEDBACKS = [
     {
