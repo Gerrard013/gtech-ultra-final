@@ -863,6 +863,7 @@ def admin_leads():
         query = query.filter(Lead.status == selected_status)
 
     leads = query.order_by(Lead.created_at.desc()).all()
+    deliveries = {x.lead_id: x for x in CrmDelivery.query.filter(CrmDelivery.lead_id.in_([l.id for l in leads])).all()} if leads else {}
     counts = {
         "total": Lead.query.count(),
         "novo": Lead.query.filter_by(status="novo").count(),
@@ -873,6 +874,7 @@ def admin_leads():
     return render_template(
         "admin.html",
         leads=leads,
+        deliveries=deliveries,
         counts=counts,
         status_labels=STATUS_LABELS,
         selected_status=selected_status,
@@ -896,6 +898,24 @@ def update_lead_status(lead_id: int):
     lead.status = new_status
     db.session.commit()
     flash("Status atualizado.", "success")
+    return redirect(url_for("admin_leads"))
+
+
+@app.post("/admin/leads/<int:lead_id>/crm-sync")
+@requires_auth
+def retry_lead_crm(lead_id: int):
+    token = request.form.get("admin_csrf", "")
+    expected = session.get("admin_csrf", "")
+    if not token or not expected or not secrets.compare_digest(token, expected):
+        abort(400)
+    lead = db.get_or_404(Lead, lead_id)
+    delivery = db.session.get(CrmDelivery, lead_id)
+    if delivery and delivery.status == "delivered":
+        flash("Lead já confirmado no CRM.", "success")
+    elif sync_lead_to_crm(lead, delivery.city if delivery else "Não informado"):
+        flash("Lead confirmado no CRM G Tech.", "success")
+    else:
+        flash("CRM não confirmou o recebimento. O contato continua salvo no site.", "error")
     return redirect(url_for("admin_leads"))
 
 
