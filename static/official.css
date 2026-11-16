@@ -270,3 +270,22 @@ h1,h2,h3,.section-head h2,.hero h1,.spotlight h2,.contact-copy h2,.final-content
 .service-buy{background:linear-gradient(115deg,#30e1f1,#6f9af0);color:#051726;border-color:transparent}
 .service-buy:hover{filter:brightness(1.08)}
 @media(max-width:650px){.service-actions{width:100%;justify-content:flex-start}.service-foot{align-items:flex-start;flex-direction:column}.service-actions a{min-height:42px}}
+
+/* 16/11/2026 — Official logo lockup. The previous oversized (164px) image
+   was being cropped by the 53px brand icon. Show the authentic, intact source. */
+.brand-icon,.topbar .brand-icon{
+  width:64px!important;height:64px!important;min-width:64px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  overflow:hidden!important;border-radius:13px!important;background:#fff!important;
+  border:1px solid rgba(206,233,242,.3)!important;padding:0!important;
+}
+.brand-icon img,.topbar .brand-icon img{
+  display:block!important;position:static!important;
+  width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;
+  transform:none!important;inset:auto!important;object-fit:contain!important;object-position:center!important;
+  border:0!important;background:#fff!important;
+}
+.brand .brand-type{font-family:"Oxanium","Manrope",system-ui,sans-serif!important}
+@media(max-width:650px){
+  .brand-icon,.topbar .brand-icon{width:53px!important;height:53px!important;min-width:53px!important;border-radius:11px!important}
+}
