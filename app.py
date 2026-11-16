@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import csv
+import hashlib
+import hmac
 import io
 import json
 import logging
@@ -8,12 +10,13 @@ import os
 import re
 import secrets
 import threading
+import uuid
 import time
 import urllib.request
 from datetime import datetime
 from collections import defaultdict, deque
 from functools import wraps
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 from flask import (
     Flask,
@@ -97,6 +100,66 @@ class Lead(db.Model):
             f"Recebemos seu diagnóstico sobre {self.servico}."
         )
         return f"https://wa.me/{digits}?text={quote(message)}" if digits else "#"
+
+
+class CheckoutOrder(db.Model):
+    """One-off storefront checkout; no amount, token, or PII in public redirects."""
+    __tablename__ = "gtech_checkout_orders"
+    id = db.Column(db.String(36), primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False, index=True)
+    sku = db.Column(db.String(40), nullable=False)
+    quantity = db.Column(db.Integer, nullable=False, default=1)
+    total_cents = db.Column(db.Integer, nullable=False)
+    status = db.Column(db.String(30), nullable=False, default="pending")
+    checkout_url = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+# Deliberately short list. The others require scope or logistics confirmation.
+# Prices are server-side and repeated for verification by MetaSimples.
+CHECKOUT_OFFERS = {
+    "foto": {"title": "Restauração de fotografia", "cents": 1000, "description": "Restauração de uma foto. O arquivo é enviado após a compra."},
+    "google": {"title": "Perfil da Empresa no Google", "cents": 15000, "description": "Organização de perfil elegível; não inclui garantia de posição ou aprovação."},
+}
+
+
+def _checkout_enabled() -> bool:
+    return os.getenv("GTECH_CHECKOUT_ENABLED", "false").lower() == "true"
+
+
+def _meta_bridge_url() -> str:
+    # Fixed allowlist: never forward customer requests to arbitrary hosts.
+    return "https://metasimples-production.up.railway.app"
+
+
+def _checkout_bridge_secret() -> str:
+    return os.getenv("GTECH_CHECKOUT_SHARED_SECRET", "").strip()
+
+
+def _signed_gateway_request(path: str, body: bytes | None = None) -> urllib.request.Request:
+    secret = _checkout_bridge_secret()
+    if len(secret) < 32:
+        raise RuntimeError("Ponte de pagamento não configurada.")
+    raw = (b"status:" + path.rsplit("/", 1)[-1].encode()) if body is None else body
+    signature = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest()
+    return urllib.request.Request(
+        _meta_bridge_url() + path, data=body,
+        method="POST" if body is not None else "GET",
+        headers={"X-GTech-Signature": "sha256=" + signature, "Content-Type": "application/json"}
+    )
+
+
+def _is_mercadopago_link(url: str) -> bool:
+    try:
+        parts = urlsplit(url)
+        host = (parts.hostname or "").lower()
+        return parts.scheme == "https" and not parts.username and not parts.password and (
+            host in {"mercadopago.com.br", "mercadopago.com"} or
+            host.endswith(".mercadopago.com.br") or host.endswith(".mercadopago.com")
+        )
+    except ValueError:
+        return False
 
 
 with app.app_context():
@@ -431,6 +494,106 @@ def create_lead():
     sync_lead_to_crm(lead, cidade)
     return redirect(url_for("thanks"))
 
+
+
+@app.route("/comprar/<sku>", methods=["GET", "POST"])
+def checkout_product(sku: str):
+    if sku not in CHECKOUT_OFFERS:
+        abort(404)
+    if not _checkout_enabled():
+        abort(503)
+    offer = CHECKOUT_OFFERS[sku]
+    if "checkout_csrf" not in session:
+        session["checkout_csrf"] = secrets.token_urlsafe(32)
+    if request.method == "GET":
+        return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
+                               csrf_token=session["checkout_csrf"])
+
+    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
+        abort(403)
+    token = request.form.get("csrf_token", "")
+    if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
+        abort(400)
+    if request.form.get("website", "") or request.form.get("consentimento") != "yes":
+        abort(400)
+    if excessive_lead_submissions(request.remote_addr or "unknown"):
+        return Response("Muitas tentativas, tente novamente mais tarde.", status=429)
+
+    name = clean_text(request.form.get("nome"), 100)
+    phone = clean_text(request.form.get("whatsapp"), 40)
+    if len(name) < 2 or not valid_phone(phone):
+        flash("Confira seu nome e celular com DDD.", "error")
+        return redirect(url_for("checkout_product", sku=sku))
+    if len(_checkout_bridge_secret()) < 32:
+        flash("O pagamento online está temporariamente indisponível. Fale conosco pelo WhatsApp.", "error")
+        return redirect(url_for("checkout_product", sku=sku))
+
+    lead = Lead(
+        nome=name, whatsapp=normalize_mobile(phone) or phone, negocio="Cliente de checkout",
+        servico="Fotos ou Restauração" if sku == "foto" else "Perfil da Empresa no Google",
+        prazo="O mais rápido possível", objetivo="Pedido de checkout G Tech: " + offer["title"],
+        origem="checkout_gtech"
+    )
+    order_id = str(uuid.uuid4())
+    order = CheckoutOrder(
+        id=order_id, lead_id=0, sku=sku, quantity=1,
+        total_cents=offer["cents"], status="pending"
+    )
+    try:
+        db.session.add(lead)
+        db.session.flush()
+        order.lead_id = lead.id
+        db.session.add(order)
+        db.session.commit()
+
+        payload = json.dumps(
+            {"order_id": order_id, "sku": sku, "quantity": 1},
+            separators=(",", ":"), sort_keys=True
+        ).encode("utf-8")
+        req = _signed_gateway_request("/api/gtech/checkout", payload)
+        with urllib.request.urlopen(req, timeout=14) as response:
+            result = json.load(response)
+        gateway_url = str(result.get("checkout_url") or "")
+        if result.get("order_id") != order_id or result.get("amount_cents") != offer["cents"] or not _is_mercadopago_link(gateway_url):
+            raise ValueError("Checkout retornou dados diferentes do pedido.")
+        order.checkout_url = gateway_url
+        db.session.commit()
+        session["last_checkout_order"] = order_id
+        return redirect(gateway_url, code=303)
+    except Exception as exc:
+        db.session.rollback()
+        current_app = app
+        current_app.logger.warning("G Tech Checkout indisponível: %s", type(exc).__name__)
+        # Lead/order survive a gateway failure and can be recovered in the admin.
+        return redirect(url_for("payment_result", order_id=order_id))
+
+
+@app.route("/pedido/<order_id>")
+def payment_result(order_id: str):
+    try:
+        if str(uuid.UUID(order_id, version=4)) != order_id:
+            abort(404)
+    except ValueError:
+        abort(404)
+    order = db.session.get(CheckoutOrder, order_id)
+    if not order:
+        abort(404)
+    # No browser query parameter can mark a payment as approved.
+    if _checkout_enabled() and len(_checkout_bridge_secret()) >= 32:
+        try:
+            req = _signed_gateway_request("/api/gtech/status/" + order_id)
+            with urllib.request.urlopen(req, timeout=6) as response:
+                result = json.load(response)
+            if (result.get("order_id") == order_id and
+                result.get("amount_cents") == order.total_cents and
+                result.get("sku") == order.sku and
+                result.get("status") in {"pending", "approved", "in_process", "rejected", "refunded", "cancelled", "charged_back"}):
+                if order.status != "approved" or result["status"] == "approved":
+                    order.status = result["status"]
+                    db.session.commit()
+        except Exception as exc:
+            app.logger.info("Verificação de pagamento pendente: %s", type(exc).__name__)
+    return render_template("pedido.html", order=order, contacts=CONTACTS)
 
 
 @app.route("/obrigado")
