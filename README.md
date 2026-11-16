@@ -1,7 +1,8 @@
 # G TECH | SITE OFICIAL ÚNICO — Versão 2.0
-**Ambiente oficial:** https://gtech-ultra-final-production.up.railway.app/  
+**Ambiente oficial:** https://gtech-oficial.up.railway.app/  
+**Alteração de domínio:** a URL antiga `gtech-ultra-final-production` deixará de funcionar ao renomear o domínio Railway; atualizar todos os links de campanhas, bio e mensagens.  
 **Repositório oficial:** \`Gerrard013/gtech-ultra-final\`  
-**Status:** desenvolvimento em branch de revisão. Nenhuma publicação automática na produção.
+**Status:** versão oficial lançada; integração com CRM em atualização controlada. Pagamentos permanecem desativados até aprovação PJ.
 
 ## Objetivo
 Unificar a **vitrine pública** da G Tech em um único endereço, mantendo os sistemas privados (CRM completo, gestão de leads, pagamentos e produção) separados tecnicamente.
@@ -105,3 +106,11 @@ O código bloqueia a cobrança caso faltem credenciais, ID do recebedor ou Postg
 **ATENÇÃO:** ainda é necessário testar uma transação autorizada e conferir o recebimento real na conta correta. Os testes de GitHub Actions usam resposta simulada do Mercado Pago, nunca dinheiro.
 
 Veja o documento: `docs/PRECOS_E_MERCADO_PAGO_DIRETO_GTECH.md`.
+
+## Integração oficial CRM — HMAC
+- Endpoint CRM: `/api/integrations/site/lead` (não é um formulário público).
+- Credencial idêntica `GTECH_SITE_LEAD_SECRET` (32+ caracteres) guardada somente nos dois serviços Railway.
+- No CRM: `GTECH_SITE_LEAD_ENABLED=true` somente após concluir os testes.
+- No site: `CRM_LEAD_SYNC_ENABLED=true`, `CRM_LEAD_CAPTURE_URL=https://web-production-846ce.up.railway.app/api/integrations/site/lead`.
+- Somente leads com Termos/Privacidade aceitos seguem para o CRM; dados permanecem no Postgres do site. O admin `/admin/leads` mostra recibo e botão Reenviar ao CRM.
+- Não registrar pagamentos como recebidos no CRM pelo envio de orçamento.

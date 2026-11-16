@@ -44,6 +44,11 @@ def normalize_database_url(url: str | None) -> str:
     return url
 
 
+# Public site origin for canonical links and payment callbacks (not Host-header-derived).
+PUBLIC_SITE_URL = os.getenv("GTECH_PUBLIC_URL", "https://gtech-oficial.up.railway.app").strip().rstrip("/")
+if not PUBLIC_SITE_URL.startswith("https://") or "@" in PUBLIC_SITE_URL:
+    raise RuntimeError("GTECH_PUBLIC_URL precisa ser origem HTTPS.")
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 os.makedirs(INSTANCE_DIR, exist_ok=True)
@@ -112,6 +117,17 @@ class ConsentEvidence(db.Model):
     privacy_version = db.Column(db.String(15), nullable=False, default="2026-11-16")
     terms_version = db.Column(db.String(15), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
+class CrmDelivery(db.Model):
+    """Durable site-to-CRM handoff audit. It never stores payment credentials."""
+    __tablename__ = "gtech_crm_deliveries"
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), primary_key=True)
+    city = db.Column(db.String(100), nullable=False, default="Não informado")
+    status = db.Column(db.String(20), nullable=False, default="pending")
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    delivered_at = db.Column(db.DateTime, nullable=True)
 
 
 class CheckoutOrder(db.Model):
@@ -206,7 +222,7 @@ def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, reque
 
 def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
     """The price is read from the persisted order, not from the request/browser."""
-    base = "https://gtech-ultra-final-production.up.railway.app"
+    base = PUBLIC_SITE_URL
     item = {
         "id": order.sku,
         "title": title,
@@ -537,6 +553,7 @@ def index():
         session["lead_csrf"] = secrets.token_urlsafe(32)
     return render_template(
         "index.html",
+        public_site_url=PUBLIC_SITE_URL,
         contacts=CONTACTS,
         services=SERVICES,
         checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
@@ -557,65 +574,88 @@ def index():
     )
 
 
-def sync_lead_to_crm(lead: Lead, city: str) -> None:
-    """Optional best-effort hand-off; local database is the source of recovery."""
+CRM_SITE_ENDPOINT = "https://web-production-846ce.up.railway.app/api/integrations/site/lead"
+CRM_PRODUCT_MAP = {
+    "Placa NFC Personalizada": "nfc",
+    "Site Profissional": "site",
+    "Perfil da Empresa no Google": "google",
+    "Cardápio Digital Premium": "cardapio",
+    "Fotos ou Restauração": "foto",
+    "Automação ou Sistema": "automacao",
+    "Outro serviço": "outro",
+}
+
+
+def sync_lead_to_crm(lead: Lead, city: str) -> bool:
+    """Retryable, HMAC-authenticated handoff; local Postgres remains authoritative."""
+    delivery = db.session.get(CrmDelivery, lead.id)
+    if delivery is None:
+        delivery = CrmDelivery(lead_id=lead.id, city=city or "Não informado")
+        db.session.add(delivery)
+        db.session.commit()
+    if delivery.status == "delivered":
+        return True
     if os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() != "true":
-        return
+        return False
     endpoint = os.getenv("CRM_LEAD_CAPTURE_URL", "").strip()
-    # Never send customer data to an unverified or unexpected destination.
-    expected = "https://web-production-846ce.up.railway.app/api/public/lead"
-    if endpoint != expected:
-        logging.warning("G Tech lead sync skipped: CRM endpoint not approved")
-        return
-    mapping = {
-        "Placa NFC Personalizada": "nfc",
-        "Site Profissional": "site",
-        "Perfil da Empresa no Google": "google",
-        "Cardápio Digital Premium": "cardapio",
-        "Fotos ou Restauração": "foto",
-        "Automação ou Sistema": "automacao",
-    }
-    product = mapping.get(lead.servico)
+    secret = os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()
+    if endpoint != CRM_SITE_ENDPOINT or len(secret) < 32:
+        app.logger.warning("G Tech: CRM sync disabled, endpoint or secret not approved.")
+        return False
+    product = CRM_PRODUCT_MAP.get(lead.servico)
     if not product:
-        logging.info("G Tech lead kept locally: service not mapped to CRM")
-        return
-    number = re.sub(r"\D", "", lead.whatsapp)
-    if not number.startswith("55"):
-        number = "55" + number
-    body = {
+        app.logger.warning("G Tech: unknown lead product not synchronized.")
+        return False
+    mobile = re.sub(r"\D", "", lead.whatsapp)
+    if not mobile.startswith("55"):
+        mobile = "55" + mobile
+    evidence = (ConsentEvidence.query.filter_by(lead_id=lead.id, purpose="budget")
+                .order_by(ConsentEvidence.created_at.desc()).first())
+    if not evidence or not evidence.terms_version:
+        app.logger.warning("G Tech: no consent evidence, cannot export lead to CRM.")
+        return False
+
+    details = (
+        lead.objetivo + ("\n" + lead.mensagem if lead.mensagem else "")
+    )[:900]
+    payload = {
+        "siteLeadId": lead.id,
         "name": lead.nome,
         "company": lead.negocio,
-        "phone": number,
-        "city": city or "Não informado",
-        "sector": "Site oficial G Tech",
+        "phone": mobile,
+        "city": delivery.city,
         "product": product,
-        "quantity": 1,
-        "start": (
-            "agora" if lead.prazo == "O mais rápido possível"
-            else "30_dias" if lead.prazo in ("Em até 7 dias", "Em até 30 dias")
-            else "pesquisando"
-        ),
-        "details": (
-            "Origem: site oficial. "
-            "Serviço original: " + lead.servico + ". "
-            "Necessidade: " + lead.objetivo[:550] + ". "
-            "ID interno: " + str(lead.id) + ". "
-            "Nenhum pagamento foi confirmado."
-        )[:900],
+        "details": details[:900],
         "consent": True,
-        "website": "",
+        "termsAccepted": True,
+        "privacyVersion": evidence.privacy_version,
+        "termsVersion": evidence.terms_version,
     }
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ts = str(int(time.time()))
+    digest = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + data, hashlib.sha256).hexdigest()
+    request_obj = urllib.request.Request(
+        endpoint, data=data, method="POST",
+        headers={"Content-Type": "application/json",
+                 "X-GTech-Timestamp": ts,
+                 "X-GTech-Signature": "sha256=" + digest},
+    )
+    delivery.attempts += 1
+    delivery.updated_at = datetime.utcnow()
+    db.session.commit()
     try:
-        req = urllib.request.Request(
-            endpoint,
-            data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=4) as response:
-            logging.info("G Tech CRM lead sync: HTTP %s", response.status)
-    except Exception:
-        logging.warning("G Tech CRM lead sync failed; original lead saved locally")
+        with urllib.request.urlopen(request_obj, timeout=5) as response:
+            result = json.load(response)
+            if response.status not in (200, 201) or result.get("ok") is not True:
+                raise ValueError("CRM did not confirm handoff")
+        delivery.status = "delivered"
+        delivery.delivered_at = datetime.utcnow()
+        db.session.commit()
+        return True
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning("G Tech CRM sync pending; no lead lost locally. Failure type %s", type(exc).__name__)
+        return False
 
 
 @app.post("/lead")
@@ -677,6 +717,7 @@ def create_lead():
     db.session.add(lead)
     db.session.flush()
     db.session.add(ConsentEvidence(lead_id=lead.id, purpose="budget", privacy_version="2026-11-16", terms_version="2026-11-16"))
+    db.session.add(CrmDelivery(lead_id=lead.id, city=cidade or "Não informado"))
     db.session.commit()
     # Do not fail the customer journey when the CRM integration is unavailable.
     sync_lead_to_crm(lead, cidade)
@@ -828,6 +869,7 @@ def admin_leads():
         query = query.filter(Lead.status == selected_status)
 
     leads = query.order_by(Lead.created_at.desc()).all()
+    deliveries = {x.lead_id: x for x in CrmDelivery.query.filter(CrmDelivery.lead_id.in_([l.id for l in leads])).all()} if leads else {}
     counts = {
         "total": Lead.query.count(),
         "novo": Lead.query.filter_by(status="novo").count(),
@@ -838,6 +880,7 @@ def admin_leads():
     return render_template(
         "admin.html",
         leads=leads,
+        deliveries=deliveries,
         counts=counts,
         status_labels=STATUS_LABELS,
         selected_status=selected_status,
@@ -861,6 +904,24 @@ def update_lead_status(lead_id: int):
     lead.status = new_status
     db.session.commit()
     flash("Status atualizado.", "success")
+    return redirect(url_for("admin_leads"))
+
+
+@app.post("/admin/leads/<int:lead_id>/crm-sync")
+@requires_auth
+def retry_lead_crm(lead_id: int):
+    token = request.form.get("admin_csrf", "")
+    expected = session.get("admin_csrf", "")
+    if not token or not expected or not secrets.compare_digest(token, expected):
+        abort(400)
+    lead = db.get_or_404(Lead, lead_id)
+    delivery = db.session.get(CrmDelivery, lead_id)
+    if delivery and delivery.status == "delivered":
+        flash("Lead já confirmado no CRM.", "success")
+    elif sync_lead_to_crm(lead, delivery.city if delivery else "Não informado"):
+        flash("Lead confirmado no CRM G Tech.", "success")
+    else:
+        flash("CRM não confirmou o recebimento. O contato continua salvo no site.", "error")
     return redirect(url_for("admin_leads"))
 
 
@@ -926,7 +987,7 @@ def robots():
 
 @app.route("/sitemap.xml")
 def sitemap():
-    base = "https://gtech-ultra-final-production.up.railway.app"
+    base = PUBLIC_SITE_URL
     content = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'

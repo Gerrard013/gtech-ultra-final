@@ -312,3 +312,8 @@ h1,h2,h3,.section-head h2,.hero h1,.spotlight h2,.contact-copy h2,.final-content
     clip-path:inset(0 0 35% 0)!important;
   }
 }
+
+/* Official legal consent: distinct from cookie settings and visible before CTA. */
+.form-shell .consent-terms{background:rgba(31,94,131,.2);padding:12px;border:1px solid rgba(77,207,242,.3);border-radius:12px}
+.form-shell .consent-terms a{font-weight:800;text-underline-offset:3px;color:#67e8f9}
+.form-shell .consent-terms:focus-within{outline:2px solid #67e8f9;outline-offset:2px}
