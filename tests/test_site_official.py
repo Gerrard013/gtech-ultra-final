@@ -239,6 +239,81 @@ class OfficialSiteTests(unittest.TestCase):
                     sync_lead_to_crm(lead, "Belém")
             self.assertIsNotNone(db.session.get(Lead, lead_id))
 
+    def test_checkout_disabled_until_real_gateway_configured(self):
+        self.assertEqual(self.client.get("/comprar/foto").status_code, 503)
+        self.assertEqual(self.client.get("/comprar/google").status_code, 503)
+        self.assertEqual(self.client.get("/comprar/nfc").status_code, 404)
+
+    def test_checkout_fixed_price_signed_bridge_without_real_transaction(self):
+        import io
+        import json
+        import hmac
+        import hashlib
+        from app import CheckoutOrder
+        shared="test-only-checkout-secret-with-more-than-32-characters"
+        captured=[]
+        class FakeHTTP(io.BytesIO):
+            def __enter__(self): return self
+            def __exit__(self,*_args): return False
+
+        def fake_urlopen(req, timeout):
+            body=json.loads(req.data.decode("utf-8"))
+            signature=req.headers.get("X-gtech-signature") or req.headers.get("X-GTech-Signature")
+            expected="sha256="+hmac.new(shared.encode(),req.data,hashlib.sha256).hexdigest()
+            self.assertEqual(signature,expected)
+            self.assertEqual(req.full_url,"https://metasimples-production.up.railway.app/api/gtech/checkout")
+            self.assertEqual(body["sku"],"foto")
+            self.assertEqual(body["quantity"],1)
+            captured.append(body)
+            response={
+                "order_id":body["order_id"],"amount_cents":1000,
+                "checkout_url":"https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=unit-test"
+            }
+            return FakeHTTP(json.dumps(response).encode("utf-8"))
+
+        with patch.dict(os.environ,{"GTECH_CHECKOUT_ENABLED":"true",
+                                   "GTECH_CHECKOUT_SHARED_SECRET":shared}):
+            page=self.client.get("/comprar/foto")
+            self.assertEqual(page.status_code,200)
+            self.assertIn(b"Ir ao Mercado Pago",page.data)
+            with self.client.session_transaction() as sess:
+                token=sess["checkout_csrf"]
+            with patch("urllib.request.urlopen",side_effect=fake_urlopen):
+                result=self.client.post("/comprar/foto",data={
+                    "csrf_token":token,"nome":"Cliente Exemplo",
+                    "whatsapp":"(91) 98273-6418",
+                    "consentimento":"yes",
+                    "price":"1",
+                })
+            self.assertEqual(result.status_code,303,result.get_data(as_text=True))
+            self.assertTrue(result.location.startswith("https://www.mercadopago.com.br/checkout/"))
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.count(),1)
+                order=CheckoutOrder.query.one()
+                self.assertEqual(order.total_cents,1000)
+                self.assertEqual(order.status,"pending")
+                self.assertEqual(Lead.query.count(),1)
+            self.assertEqual(len(captured),1)
+
+    def test_payment_return_query_cannot_fake_approval(self):
+        from app import CheckoutOrder
+        import uuid
+        order_id=str(uuid.uuid4())
+        with app.app_context():
+            lead=Lead(nome="Cliente Exemplo",whatsapp="91982736418",negocio="Teste",
+                      servico="Fotos ou Restauração",prazo="agora",
+                      objetivo="Restauração de fotografia",origem="checkout_gtech")
+            db.session.add(lead)
+            db.session.flush()
+            db.session.add(CheckoutOrder(id=order_id,lead_id=lead.id,sku="foto",
+                                         quantity=1,total_cents=1000,status="pending"))
+            db.session.commit()
+        result=self.client.get("/pedido/"+order_id+"?retorno=sucesso")
+        self.assertEqual(result.status_code,200)
+        self.assertIn(b"Aguardando",result.data)
+        with app.app_context():
+            self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"pending")
+
     def test_privacy_thanks_and_sitemap(self):
         self.assertEqual(self.client.get("/privacidade").status_code, 200)
         self.assertEqual(self.client.get("/obrigado?lead_id=100").status_code, 200)
