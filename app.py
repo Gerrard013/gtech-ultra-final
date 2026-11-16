@@ -648,7 +648,8 @@ def checkout_product(sku: str):
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
         abort(400)
-    if request.form.get("website", "") or request.form.get("consentimento") != "yes":
+    if (request.form.get("website", "") or request.form.get("consentimento") != "yes"
+        or request.form.get("termos") != "yes"):
         abort(400)
     if excessive_lead_submissions(request.remote_addr or "unknown"):
         return Response("Muitas tentativas. Tente novamente mais tarde.", status=429)
@@ -743,6 +744,11 @@ def thanks():
 @app.route("/privacidade")
 def privacy_policy():
     return render_template("privacidade.html", contacts=CONTACTS, year=datetime.utcnow().year)
+
+
+@app.route("/termos")
+def terms_of_service():
+    return render_template("termos.html", contacts=CONTACTS, year=datetime.utcnow().year)
 
 
 @app.route("/admin/leads")
