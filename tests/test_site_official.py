@@ -176,83 +176,91 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(Lead.query.count(), 0)
 
 
-    def test_crm_sync_is_off_until_explicitly_enabled(self):
-        from app import sync_lead_to_crm
+    def test_crm_sync_off_keeps_lead_pending(self):
+        from app import sync_lead_to_crm, CrmDelivery
         with app.app_context():
-            lead = Lead(
-                nome="Cliente Teste", whatsapp="91982736418", negocio="Teste G Tech",
-                servico="Placa NFC Personalizada", prazo="Em até 7 dias",
-                objetivo="Demonstração de NFC para estabelecimento", origem="site_test"
-            )
+            lead=Lead(nome="Cliente Teste",whatsapp="91982736418",negocio="Teste G Tech",
+                      servico="Placa NFC Personalizada",prazo="Em até 7 dias",
+                      objetivo="Demonstração de NFC para estabelecimento",origem="site_test")
             db.session.add(lead)
             db.session.commit()
-            with patch.dict(os.environ, {"CRM_LEAD_SYNC_ENABLED": "false",
-                                        "CRM_LEAD_CAPTURE_URL": "https://web-production-846ce.up.railway.app/api/public/lead"}):
-                with patch("urllib.request.urlopen", side_effect=AssertionError("CRM must not be contacted")):
-                    sync_lead_to_crm(lead, "Belém")
-            self.assertEqual(Lead.query.count(), 1)
+            with patch.dict(os.environ,{"CRM_LEAD_SYNC_ENABLED":"false"}):
+                with patch("urllib.request.urlopen",side_effect=AssertionError("No network while disabled")):
+                    self.assertFalse(sync_lead_to_crm(lead,"Belém"))
+            self.assertEqual(Lead.query.count(),1)
+            self.assertEqual(db.session.get(CrmDelivery,lead.id).status,"pending")
 
-    def test_crm_payload_compatible_with_current_lead_capture_schema(self):
-        import json
-        from types import SimpleNamespace
-        from app import sync_lead_to_crm
-        captured = []
-        class FakeResponse:
-            status = 201
-            def __enter__(self): return self
-            def __exit__(self, *_args): return False
-
+    def test_signed_crm_payload_accepted_only_with_consent_and_idempotent(self):
+        import io, json, hmac, hashlib
+        from app import sync_lead_to_crm, CrmDelivery, ConsentEvidence, CRM_SITE_ENDPOINT
+        secret="unit-test-only-secret-for-signed-site-handoff-2026"
+        captured=[]
+        class Response(io.BytesIO):
+            status=201
+            def __enter__(self):return self
+            def __exit__(self,*_args):return False
         def fake_urlopen(req, timeout):
-            captured.append((req, timeout))
-            return FakeResponse()
-
+            self.assertEqual(req.full_url,CRM_SITE_ENDPOINT)
+            self.assertEqual(timeout,5)
+            self.assertEqual(req.get_method(),"POST")
+            timestamp=req.headers["X-gtech-timestamp"]
+            sig=req.headers["X-gtech-signature"]
+            expect=hmac.new(secret.encode(),timestamp.encode()+b"."+req.data,hashlib.sha256).hexdigest()
+            self.assertEqual(sig,"sha256="+expect)
+            payload=json.loads(req.data)
+            self.assertEqual(payload["name"],"Cliente Teste")
+            self.assertEqual(payload["phone"],"5591982736418")
+            self.assertEqual(payload["product"],"nfc")
+            self.assertEqual(payload["city"],"Belém")
+            self.assertEqual(payload["termsVersion"],"2026-11-16")
+            self.assertEqual(payload["privacyVersion"],"2026-11-16")
+            self.assertIs(payload["consent"],True)
+            self.assertIs(payload["termsAccepted"],True)
+            captured.append(payload)
+            return Response(b'{"ok":true,"created":true}')
         with app.app_context():
-            lead = Lead(
-                nome="Cliente Teste", whatsapp="91982736418", negocio="Loja de Testes",
-                servico="Placa NFC Personalizada", prazo="Em até 7 dias",
-                objetivo="Quero usar NFC para disponibilizar perfil de contato",
-                origem="site_oficial_v2|instagram"
-            )
+            lead=Lead(nome="Cliente Teste",whatsapp="91982736418",negocio="Loja de Testes",
+                      servico="Placa NFC Personalizada",prazo="Em até 7 dias",
+                      objetivo="Quero NFC para disponibilizar perfil de contato",origem="site")
+            db.session.add(lead)
+            db.session.flush()
+            db.session.add(ConsentEvidence(lead_id=lead.id,purpose="budget",
+                        privacy_version="2026-11-16",terms_version="2026-11-16"))
+            db.session.commit()
+            env={"CRM_LEAD_SYNC_ENABLED":"true","CRM_LEAD_CAPTURE_URL":CRM_SITE_ENDPOINT,
+                 "GTECH_SITE_LEAD_SECRET":secret}
+            with patch.dict(os.environ,env):
+                with patch("urllib.request.urlopen",side_effect=fake_urlopen):
+                    self.assertTrue(sync_lead_to_crm(lead,"Belém"))
+                    self.assertTrue(sync_lead_to_crm(lead,"Belém"))
+            self.assertEqual(len(captured),1)
+            delivery=db.session.get(CrmDelivery,lead.id)
+            self.assertEqual(delivery.status,"delivered")
+            self.assertEqual(delivery.attempts,1)
+
+    def test_crm_failure_and_unsigned_lead_stay_local(self):
+        from app import sync_lead_to_crm, CrmDelivery, ConsentEvidence, CRM_SITE_ENDPOINT
+        secret="unit-test-only-secret-for-signed-site-handoff-2026"
+        with app.app_context():
+            lead=Lead(nome="Cliente Teste",whatsapp="91982736418",negocio="Empresa Teste",
+                      servico="Site Profissional",prazo="Estou pesquisando",
+                      objetivo="Preciso de uma vitrine digital com agendamentos",origem="site")
             db.session.add(lead)
             db.session.commit()
-            with patch.dict(os.environ, {"CRM_LEAD_SYNC_ENABLED": "true",
-                                        "CRM_LEAD_CAPTURE_URL": "https://web-production-846ce.up.railway.app/api/public/lead"}):
-                with patch("urllib.request.urlopen", side_effect=fake_urlopen):
-                    sync_lead_to_crm(lead, "Belém")
-            self.assertEqual(Lead.query.count(), 1)
-        self.assertEqual(len(captured), 1)
-        req, timeout = captured[0]
-        self.assertEqual(req.full_url, "https://web-production-846ce.up.railway.app/api/public/lead")
-        self.assertEqual(req.get_method(), "POST")
-        self.assertEqual(timeout, 4)
-        payload = json.loads(req.data.decode("utf-8"))
-        self.assertEqual(payload["phone"], "5591982736418")
-        self.assertEqual(payload["city"], "Belém")
-        self.assertEqual(payload["product"], "nfc")
-        self.assertEqual(payload["quantity"], 1)
-        self.assertEqual(payload["start"], "30_dias")
-        self.assertIs(payload["consent"], True)
-        self.assertEqual(payload["website"], "")
-        self.assertIn("Nenhum pagamento foi confirmado", payload["details"])
-        self.assertTrue(len(payload["details"]) <= 900)
-
-    def test_crm_network_failure_keeps_original_lead(self):
-        from app import sync_lead_to_crm
-        with app.app_context():
-            lead = Lead(
-                nome="Cliente Teste", whatsapp="91982736418", negocio="Empresa Teste",
-                servico="Site Profissional", prazo="Estou pesquisando",
-                objetivo="Preciso de uma vitrine digital para agendamentos",
-                origem="site_test"
-            )
-            db.session.add(lead)
-            db.session.commit()
-            lead_id=lead.id
-            with patch.dict(os.environ, {"CRM_LEAD_SYNC_ENABLED": "true",
-                                        "CRM_LEAD_CAPTURE_URL": "https://web-production-846ce.up.railway.app/api/public/lead"}):
-                with patch("urllib.request.urlopen", side_effect=TimeoutError("No network in tests")):
-                    sync_lead_to_crm(lead, "Belém")
-            self.assertIsNotNone(db.session.get(Lead, lead_id))
+            env={"CRM_LEAD_SYNC_ENABLED":"true","CRM_LEAD_CAPTURE_URL":CRM_SITE_ENDPOINT,
+                 "GTECH_SITE_LEAD_SECRET":secret}
+            with patch.dict(os.environ,env):
+                with patch("urllib.request.urlopen",side_effect=AssertionError("No consent: no network")):
+                    self.assertFalse(sync_lead_to_crm(lead,"Belém"))
+                db.session.add(ConsentEvidence(lead_id=lead.id,purpose="budget",
+                            privacy_version="2026-11-16",terms_version="2026-11-16"))
+                db.session.commit()
+                with patch("urllib.request.urlopen",side_effect=TimeoutError("Synthetic network timeout")):
+                    self.assertFalse(sync_lead_to_crm(lead,"Belém"))
+            self.assertIsNotNone(db.session.get(Lead,lead.id))
+            delivery=db.session.get(CrmDelivery,lead.id)
+            self.assertEqual(delivery.status,"pending")
+            self.assertEqual(delivery.attempts,1)
 
     def test_checkout_disabled_until_real_gateway_configured(self):
         self.assertEqual(self.client.get("/comprar/foto").status_code, 503)
