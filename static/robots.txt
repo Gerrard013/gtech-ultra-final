@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /admin/
 Disallow: /obrigado
-Sitemap: https://gtech-ultra-final-production.up.railway.app/sitemap.xml
+Sitemap: https://gtech-oficial.up.railway.app/sitemap.xml
