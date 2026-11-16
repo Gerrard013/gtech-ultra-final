@@ -1,3 +1,5 @@
+> **DECISÃO MAIS RECENTE — 16/11/2026:** Mercado Pago DIRETO no site G Tech. MetaSimples NÃO será intermediário; todas as referências anteriores neste histórico à ponte MetaSimples foram SUPERADAS. O preço oficial está em `config/catalogo_gtech.json`; veja `docs/PRECOS_E_MERCADO_PAGO_DIRETO_GTECH.md`. Cobranças em produção permanecem DESLIGADAS até validar conta recebedora, banco, webhook e preço.
+
 # G TECH | CENTRAL DE COMANDO — 16/11/2026
 **CEO:** Gerrard Costa Maciel  
 **Marca:** G Tech | Innovation & Solutions  
