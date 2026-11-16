@@ -302,7 +302,7 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(payload["items"][0]["quantity"],1)
             self.assertEqual(payload["external_reference"],"GTECH-"+req.headers["X-idempotency-key"])
             self.assertEqual(payload["notification_url"],
-                "https://gtech-ultra-final-production.up.railway.app/webhooks/mercadopago")
+                "https://gtech-oficial.up.railway.app/webhooks/mercadopago")
             captured.append(payload)
             return FakeHTTP(json.dumps({
                 "id":"pref-test-only",
@@ -525,7 +525,7 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(self.client.get("/obrigado?lead_id=100").status_code, 200)
         site_map = self.client.get("/sitemap.xml")
         self.assertEqual(site_map.status_code, 200)
-        self.assertIn(b"gtech-ultra-final-production.up.railway.app", site_map.data)
+        self.assertIn(b"gtech-oficial.up.railway.app", site_map.data)
         self.assertEqual(self.client.get("/health").json["status"], "ok")
 
 
