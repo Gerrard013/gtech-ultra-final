@@ -428,9 +428,26 @@ class OfficialSiteTests(unittest.TestCase):
             db.session.add(CheckoutOrder(id=order_id,lead_id=lead.id,sku="foto",
                                          quantity=1,total_cents=1000,status="pending"))
             db.session.commit()
-            good={"external_reference":"GTECH-"+order_id,"currency_id":"BRL",
+            good={"id":1234567,"live_mode":True,"external_reference":"GTECH-"+order_id,"currency_id":"BRL",
                   "collector_id":12345678,"transaction_amount":10.00,"status":"approved"}
             with patch.dict(os.environ,{"MERCADOPAGO_COLLECTOR_ID":"12345678"}):
+                # Production rejects test, unverified environment, wrong ID/currency and fractional cents.
+                invalid = [{"live_mode": False}, {"live_mode": None}, {"live_mode": "true"},
+                           {"id": 7654321}, {"currency_id": "USD"}, {"transaction_amount": 10.001},
+                           {"transaction_amount": "NaN"}]
+                for change in invalid:
+                    with self.subTest(change=change), patch("app._mp_request", return_value={**good, **change}):
+                        self.assertFalse(_reconcile_mercadopago_payment("1234567"))
+                from app import CheckoutPaymentDelivery
+                self.assertEqual(CheckoutPaymentDelivery.query.count(), 0)
+                without_mode = {key: value for key, value in good.items() if key != "live_mode"}
+                with patch("app._mp_request", return_value=without_mode):
+                    self.assertFalse(_reconcile_mercadopago_payment("1234567"))
+                with patch("app._mp_request", return_value={**good, "status": "authorized"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"authorized")
+                with patch("app._mp_request", return_value={**good, "status": "pending"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
                 with patch("app._mp_request",return_value={**good,"transaction_amount":1}):
                     self.assertFalse(_reconcile_mercadopago_payment("1234567"))
                 self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"pending")
@@ -442,6 +459,16 @@ class OfficialSiteTests(unittest.TestCase):
                 with patch("app._mp_request",return_value=good):
                     self.assertTrue(_reconcile_mercadopago_payment("1234567"))
                 self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"approved")
+                with patch("app._mp_request", return_value={**good, "status": "in_mediation"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"in_mediation")
+                page = self.client.get("/pedido/" + order_id).get_data(as_text=True)
+                self.assertIn("Pagamento em disputa", page)
+                self.assertNotIn("Pagamento confirmado pela API", page)
+                with patch("app._mp_request", return_value={**good, "status": "charged_back"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                page = self.client.get("/pedido/" + order_id).get_data(as_text=True)
+                self.assertIn("Pagamento em contestação", page)
                 with patch("app._mp_request",return_value={**good,"status":"refunded"}):
                     self.assertTrue(_reconcile_mercadopago_payment("1234567"))
                 self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"refunded")
@@ -465,7 +492,7 @@ class OfficialSiteTests(unittest.TestCase):
             db.session.add(CheckoutOrder(id=order_id, lead_id=lead.id, sku="foto", total_cents=1000))
             db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", terms_version="2026-11-16"))
             db.session.commit()
-            good = {"external_reference": "GTECH-" + order_id, "currency_id": "BRL",
+            good = {"id": 1234567, "live_mode": True, "external_reference": "GTECH-" + order_id, "currency_id": "BRL",
                     "collector_id": 12345678, "transaction_amount": 10, "status": "approved"}
             with patch.dict(os.environ, {"MERCADOPAGO_COLLECTOR_ID": "12345678",
                                         "CRM_PAYMENT_SYNC_ENABLED": "true", "GTECH_SITE_LEAD_SECRET": secret}):
@@ -513,12 +540,12 @@ class OfficialSiteTests(unittest.TestCase):
             db.session.flush()
             db.session.add(CheckoutOrder(id=order_id, lead_id=lead.id, sku="foto", total_cents=1000))
             db.session.commit()
-            good = {"external_reference": "GTECH-" + order_id, "currency_id": "BRL",
+            good = {"id": 1234567, "live_mode": True, "external_reference": "GTECH-" + order_id, "currency_id": "BRL",
                     "collector_id": 12345678, "transaction_amount": 10, "status": "approved"}
             with patch.dict(os.environ, {"MERCADOPAGO_COLLECTOR_ID": "12345678"}):
                 with patch("app._mp_request", return_value=good):
                     self.assertTrue(_reconcile_mercadopago_payment("1234567"))
-                with patch("app._mp_request", return_value={**good, "status": "rejected"}):
+                with patch("app._mp_request", return_value={**good, "id": 1234568, "status": "rejected"}):
                     self.assertTrue(_reconcile_mercadopago_payment("1234568"))
             self.assertEqual(db.session.get(CheckoutOrder, order_id).status, "approved")
             self.assertEqual(CheckoutPaymentDelivery.query.count(), 2)

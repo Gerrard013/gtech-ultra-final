@@ -15,7 +15,7 @@ import uuid
 import time
 import urllib.request
 from datetime import datetime, timedelta
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation
 from collections import defaultdict, deque
 from functools import wraps
 from urllib.parse import quote, urlsplit
@@ -283,6 +283,9 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     if not re.fullmatch(r"[0-9]{1,25}", str(payment_id)):
         return False
     data = _mp_request("/v1/payments/" + str(payment_id))
+    # Production receipts only: the token prefix does not prove live mode.
+    if data.get("live_mode") is not True or str(data.get("id")) != str(payment_id):
+        return False
     external_reference = str(data.get("external_reference") or "")
     if not external_reference.startswith("GTECH-"):
         return False
@@ -297,14 +300,16 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
         app.logger.warning("Mercado Pago: recebedor/moeda divergem do pedido %s", pid)
         return False
     try:
-        received_cents = int((Decimal(str(data.get("transaction_amount"))) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        received_cents = Decimal(str(data.get("transaction_amount"))) * 100
+        if not received_cents.is_finite() or received_cents != received_cents.to_integral_value():
+            return False
     except (InvalidOperation, ValueError, TypeError):
         return False
     if received_cents != order.total_cents:
         app.logger.warning("Mercado Pago: valor divergente no pedido %s", pid)
         return False
     status = str(data.get("status") or "")
-    allowed = {"approved", "pending", "in_process", "rejected", "cancelled", "refunded", "charged_back"}
+    allowed = {"approved", "pending", "authorized", "in_process", "in_mediation", "rejected", "cancelled", "refunded", "charged_back"}
     if status not in allowed:
         return False
     delivery = db.session.get(CheckoutPaymentDelivery, str(payment_id))
@@ -320,7 +325,7 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     db.session.flush()
     payment_statuses = {p.status for p in CheckoutPaymentDelivery.query.filter_by(order_id=pid).all()}
     # A rejected retry must not overwrite another successful payment for the order.
-    order.status = next((s for s in ("approved", "charged_back", "refunded", "in_process", "pending", "rejected", "cancelled")
+    order.status = next((s for s in ("approved", "in_mediation", "charged_back", "refunded", "in_process", "authorized", "pending", "rejected", "cancelled")
                          if s in payment_statuses), status)
     db.session.commit()
     sync_payment_to_crm(str(payment_id))
