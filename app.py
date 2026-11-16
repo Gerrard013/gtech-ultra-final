@@ -932,6 +932,7 @@ def sitemap():
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
         f"<url><loc>{base}/</loc></url>"
         f"<url><loc>{base}/privacidade</loc></url>"
+        f"<url><loc>{base}/termos</loc></url>"
         "</urlset>"
     )
     return Response(content, mimetype="application/xml")
