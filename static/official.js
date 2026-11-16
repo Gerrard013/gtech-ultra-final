@@ -88,29 +88,59 @@
     phone.setCustomValidity("");
     if (phone.value.replace(/\D/g,"").length>13) phone.value=phone.value.slice(0,20);
   });
-  form?.addEventListener("submit",event=>{
-    const p=phone ? normalizePhone(phone.value) : null;
-    if (!p && phone){
-      event.preventDefault();
+  form?.addEventListener("submit",async event=>{
+    event.preventDefault();
+    if(form.dataset.submitting==="true")return;
+    const p=phone?normalizePhone(phone.value):null;
+    if(!p&&phone){
       phone.setCustomValidity("Digite um celular brasileiro com DDD e nono dígito. Números de exemplo não são aceitos.");
       phone.reportValidity();
       return;
     }
-    if (!form.reportValidity()) { event.preventDefault(); return; }
-    if (form.dataset.demo === "true"){
-      // This is the staging instance: users can verify all fields,
-      // but we never submit, store, or transmit any entered information.
-      event.preventDefault();
+    if(!form.reportValidity())return;
+    if(form.dataset.demo==="true"){
       const status=document.getElementById("quote-demo-result");
-      if (status){
+      if(status){
         status.textContent="✓ Teste concluído: os campos estão funcionando. Esta demonstração NÃO enviou nem armazenou os dados digitados. Para solicitar orçamento real, fale pelo WhatsApp.";
         status.dataset.completed="true";
         status.scrollIntoView({behavior:"smooth",block:"nearest"});
       }
       return;
     }
-    const submit=form.querySelector(".form-submit");
-    if (submit) { submit.disabled=true;submit.textContent="Enviando sua solicitação..."; }
+    const button=form.querySelector(".form-submit");
+    const oldLabel=button?button.textContent:"Pedir orçamento gratuito";
+    const tokenField=form.querySelector('input[name="csrf_token"]');
+    if(button){button.disabled=true;button.textContent="Validando segurança...";}
+    try{
+      // Refresh the essential session token when a visitor leaves the form open
+      // or when a browser has discarded an older cookie. Never bypass CSRF.
+      const response=await fetch("/api/form-token",{
+        method:"GET",credentials:"same-origin",cache:"no-store",
+        headers:{"Accept":"application/json"}
+      });
+      if(!response.ok)throw new Error("form_security_unavailable");
+      const payload=await response.json();
+      if(!tokenField||typeof payload.csrf_token!=="string"||payload.csrf_token.length<30){
+        throw new Error("form_security_invalid");
+      }
+      tokenField.value=payload.csrf_token;
+      form.dataset.submitting="true";
+      HTMLFormElement.prototype.submit.call(form);
+    }catch(_error){
+      // Keep what the customer typed, show a useful error, and allow a retry.
+      delete form.dataset.submitting;
+      if(button){button.disabled=false;button.textContent=oldLabel;}
+      let notice=document.getElementById("quote-security-message");
+      if(!notice){
+        notice=document.createElement("p");
+        notice.id="quote-security-message";
+        notice.setAttribute("role","alert");
+        notice.className="form-flashes";
+        button?.insertAdjacentElement("beforebegin",notice);
+      }
+      notice.textContent="Não conseguimos validar a segurança do formulário agora. Seus dados não foram enviados. Confira a conexão e tente novamente.";
+      notice.scrollIntoView({behavior:"smooth",block:"nearest"});
+    }
   });
 
   const video=document.getElementById("showcase-video");
