@@ -53,6 +53,7 @@ class OfficialSiteTests(unittest.TestCase):
             "objetivo": "Quero integrar informações de contato com NFC.",
             "origem": "site_oficial_v2|instagram",
             "consentimento": "yes",
+            "termos": "yes",
         }
 
     def test_home_renders_six_offers_and_contact(self):
@@ -65,6 +66,8 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIn("5591986152222", html)
         self.assertIn('name="csrf_token"', html)
         self.assertIn('name="consentimento"', html)
+        self.assertIn('name="termos"', html)
+        self.assertIn("/termos", html)
 
     def test_contact_form_saves_local_lead_without_payment(self):
         data = self.lead_data()
@@ -120,6 +123,15 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
+
+    def test_rejects_missing_terms_without_storing_lead(self):
+        data = self.lead_data()
+        data.pop("termos")
+        response = self.client.post("/lead", data=data)
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
+            self.assertEqual(ConsentEvidence.query.count(), 0)
 
     def test_rejects_missing_csrf(self):
         data = self.lead_data()
@@ -498,7 +510,7 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(len(logs),1)
             self.assertEqual(logs[0].purpose,"budget")
             self.assertEqual(logs[0].privacy_version,"2026-11-16")
-            self.assertIsNone(logs[0].terms_version)
+            self.assertEqual(logs[0].terms_version, "2026-11-16")
 
     def test_privacy_thanks_and_sitemap(self):
         self.assertEqual(self.client.get("/privacidade").status_code, 200)
