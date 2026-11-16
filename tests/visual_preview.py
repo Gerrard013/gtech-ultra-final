@@ -69,12 +69,28 @@ try:
             assert page.locator(".hero video#showcase-video").count()==1, "Belém Studio must feature in hero"
             assert page.locator("#video-belem-studio video source").get_attribute("src").endswith("/static/media/belem-studio-nfc.mp4")
             assert page.locator("iframe").count()==0, "External player must never be required"
-            assert page.locator("fieldset.briefing-fields").get_attribute("disabled") is not None, "Preview fieldset must be disabled"
-            assert page.locator("#quote-form input[name=nome]").is_disabled(), "Preview must not collect live personal data"
-            assert page.locator("#cookie-notice").is_visible(), "Cookie consent choice missing"
+            assert page.locator("fieldset.briefing-fields").is_enabled(), "Preview must allow typing"
+            assert page.locator("#quote-form input[name=nome]").is_enabled(), "Preview fields must be editable"
+            assert page.locator("#cookie-notice").is_visible(), "Cookie preference choice missing"
             page.screenshot(path=str(DEST/f"{label}_cookies.png"))
             page.locator('[data-cookie-choice="essential"]').click()
-            assert page.locator("#cookie-notice").is_hidden(), "Cookie consent was not dismissed"
+            assert page.locator("#cookie-notice").is_hidden(), "Cookie choice did not close"
+            assert "gtech_cookie_choice_v2=essential" in page.evaluate("document.cookie"), "First party preference cookie not written"
+            page.locator("#cookie-settings").click()
+            assert page.locator("#cookie-notice").is_visible(), "Cookie preferences cannot be reopened"
+            page.locator('[data-cookie-choice="preferences"]').click()
+            assert "gtech_cookie_choice_v2=preferences" in page.evaluate("document.cookie"), "Cookie preference was not updated"
+            page.locator("#quote-form input[name=nome]").fill("Cliente Demonstração")
+            page.locator("#quote-form input[name=whatsapp]").fill("(91) 98273-6418")
+            page.locator("#quote-form select[name=servico]").select_option(label="Placa NFC Personalizada")
+            page.locator("#quote-form textarea[name=objetivo]").fill("Preciso de uma plaquinha NFC para a recepção do meu estúdio.")
+            page.locator('#quote-form input[name="consentimento"]').check()
+            preview_requests=[]
+            page.on("request",lambda req:preview_requests.append(req.url) if req.method=="POST" and req.url.endswith("/lead") else None)
+            page.locator("#quote-form .form-submit").click()
+            assert page.locator("#quote-demo-result").get_attribute("data-completed")=="true", "Demo did not validate or report completion"
+            assert not preview_requests, "Staging must not send user data to backend"
+            page.screenshot(path=str(DEST/f"{label}_briefing_editavel.png"),animations="disabled")
             assert page.locator("#depoimentos .review-proof img").count()==2, "Two real feedback screenshots missing"
             assert page.locator(".intro-logo").count()==0, "Intro should be removed after skip"
             assert "🍔" not in page.locator("#projetos").inner_text(), "Generic burger mockup still present"
