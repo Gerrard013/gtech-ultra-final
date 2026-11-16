@@ -40,8 +40,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 def normalize_database_url(url: str | None) -> str:
     if not url:
         return ""
+    if url.startswith("postgresql+psycopg://"):
+        # Railway PostgreSQL URL may request psycopg3, while this image installs psycopg2-binary.
+        return url.replace("postgresql+psycopg://", "postgresql+psycopg2://", 1)
     if url.startswith("postgres://"):
-        return url.replace("postgres://", "postgresql://", 1)
+        return url.replace("postgres://", "postgresql+psycopg2://", 1)
+    if url.startswith("postgresql://"):
+        return url.replace("postgresql://", "postgresql+psycopg2://", 1)
     return url
 
 
