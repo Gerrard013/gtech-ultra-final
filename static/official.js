@@ -92,11 +92,23 @@
     const p=phone ? normalizePhone(phone.value) : null;
     if (!p && phone){
       event.preventDefault();
-      phone.setCustomValidity("Digite seu celular brasileiro verdadeiro com DDD e nono dígito. Números de exemplo não são aceitos.");
+      phone.setCustomValidity("Digite um celular brasileiro com DDD e nono dígito. Números de exemplo não são aceitos.");
       phone.reportValidity();
       return;
     }
     if (!form.reportValidity()) { event.preventDefault(); return; }
+    if (form.dataset.demo === "true"){
+      // This is the staging instance: users can verify all fields,
+      // but we never submit, store, or transmit any entered information.
+      event.preventDefault();
+      const status=document.getElementById("quote-demo-result");
+      if (status){
+        status.textContent="✓ Teste concluído: os campos estão funcionando. Esta demonstração NÃO enviou nem armazenou os dados digitados. Para solicitar orçamento real, fale pelo WhatsApp.";
+        status.dataset.completed="true";
+        status.scrollIntoView({behavior:"smooth",block:"nearest"});
+      }
+      return;
+    }
     const submit=form.querySelector(".form-submit");
     if (submit) { submit.disabled=true;submit.textContent="Enviando sua solicitação..."; }
   });
@@ -119,26 +131,29 @@
     });
   }
 
-  // Cookies: a short, accessible preference notice.
-  // No analytics/tracking is injected at all. Only the CSRF session cookie is essential.
+  // First-party cookie preferences. No analytics/pixels are installed.
+  // Session security cookie is essential. A functional consent record lets
+  // customers change their choice without losing their form session.
   const cookieNotice=document.getElementById("cookie-notice");
   const cookieSettings=document.getElementById("cookie-settings");
-  const cookieKey="gtech_cookie_preference_v1";
-  const hasCookieChoice=()=>{
-    try {
-      const saved=JSON.parse(localStorage.getItem(cookieKey)||"null");
-      return !!(saved&&["essential","all"].includes(saved.choice)&&
-               Number.isFinite(saved.at)&&Date.now()-saved.at<180*86400000);
-    } catch (_) {return false;}
+  const cookieKey="gtech_cookie_choice_v2";
+  const readChoice=()=>{
+    const prefix=cookieKey+"=";
+    const found=document.cookie.split(";").map(s=>s.trim()).find(s=>s.startsWith(prefix));
+    return found ? decodeURIComponent(found.slice(prefix.length)) : "";
   };
-  const showCookieNotice=()=>{if(cookieNotice) cookieNotice.hidden=false;};
-  const hideCookieNotice=()=>{if(cookieNotice) cookieNotice.hidden=true;};
-  if (!hasCookieChoice()) showCookieNotice();
+  const saveChoice=(choice)=>{
+    const secure=location.protocol==="https:"?"; Secure":"";
+    document.cookie=cookieKey+"="+encodeURIComponent(choice)+"; Path=/; Max-Age=15552000; SameSite=Lax"+secure;
+  };
+  const showCookieNotice=()=>{if(cookieNotice)cookieNotice.hidden=false;};
+  const hideCookieNotice=()=>{if(cookieNotice)cookieNotice.hidden=true;};
+  if (!["essential","preferences"].includes(readChoice()))showCookieNotice();
   cookieNotice?.querySelectorAll("[data-cookie-choice]").forEach(button=>
     button.addEventListener("click",()=>{
       const choice=button.getAttribute("data-cookie-choice");
-      if(!["essential","all"].includes(choice))return;
-      try{localStorage.setItem(cookieKey,JSON.stringify({choice,at:Date.now()}));}catch(_){}
+      if(!["essential","preferences"].includes(choice))return;
+      saveChoice(choice);
       hideCookieNotice();
     }));
   cookieSettings?.addEventListener("click",showCookieNotice);
