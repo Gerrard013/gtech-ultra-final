@@ -85,3 +85,23 @@ O enquadramento de cada atividade comercial anunciada no CNPJ deve ser verificad
 - /sitemap.xml
 
 Nenhum dado foi migrado, alterado ou excluído.
+
+
+## Pagamentos diretos da G Tech (revisão de 16/11/2026)
+O site oficial usa a API do **Mercado Pago diretamente**, sem intermediar com MetaSimples. O fluxo anterior pelo MetaSimples foi abandonado; a PR do MetaSimples foi encerrada sem merge.
+
+**Fonte única dos preços:** `config/catalogo_gtech.json`
+- Editor no GitHub: https://github.com/Gerrard013/gtech-ultra-final/edit/feature/site-oficial-unico-v2-2026-11-13/config/catalogo_gtech.json
+- Legendas na vitrine e valores das preferências são lidos desse arquivo.
+- `preco_centavos` é número inteiro: 7999 significa R$ 79,99.
+- `checkout_direto` deve ficar false para NFC, sites, assinatura, cardápios e automações enquanto não houver condição comercial definida.
+
+**Credenciais exclusivas do serviço G Tech no Railway:** `MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `MERCADOPAGO_COLLECTOR_ID`. Nunca incluir valores reais no repositório ou chats. `GTECH_CHECKOUT_ENABLED=false` deve continuar false até validação explícita.
+
+O código bloqueia a cobrança caso faltem credenciais, ID do recebedor ou PostgreSQL durável. Além disso, o ambiente preview não recebe pagamentos; nele a página de compra é exclusivamente visual.
+
+**Fluxo:** formulário mobile protegido → pedido persistido no banco G Tech → preferência Checkout Pro no Mercado Pago → Pix/cartão conforme conta recebedora → webhook assinado → consulta autenticada à API → status do pedido. O navegador não pode marcar uma compra como paga só enviando `?retorno=sucesso`.
+
+**ATENÇÃO:** ainda é necessário testar uma transação autorizada e conferir o recebimento real na conta correta. Os testes de GitHub Actions usam resposta simulada do Mercado Pago, nunca dinheiro.
+
+Veja o documento: `docs/PRECOS_E_MERCADO_PAGO_DIRETO_GTECH.md`.
