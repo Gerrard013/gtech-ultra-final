@@ -14,7 +14,8 @@ os.environ["ADMIN_USER"] = "ci-admin"
 os.environ["ADMIN_PASS"] = "ci-password-for-tests-only"
 os.environ["CRM_LEAD_SYNC_ENABLED"] = "false"
 
-from app import app, db, Lead, SERVICES, _lead_attempts, _lead_attempts_lock, normalize_mobile
+from app import (app, db, Lead, ConsentEvidence, SERVICES, _lead_attempts, _lead_attempts_lock,
+                 _admin_failed, _admin_failed_lock, normalize_mobile)
 
 
 class OfficialSiteTests(unittest.TestCase):
@@ -23,6 +24,8 @@ class OfficialSiteTests(unittest.TestCase):
         app.config["TESTING"] = True
         with _lead_attempts_lock:
             _lead_attempts.clear()
+        with _admin_failed_lock:
+            _admin_failed.clear()
         with app.app_context():
             db.session.remove()
             db.drop_all()
@@ -434,6 +437,68 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(blocked.status_code,403)
             with app.app_context():
                 self.assertEqual(Lead.query.count(),0)
+
+    def test_security_headers_and_no_shared_cache(self):
+        home=self.client.get("/")
+        self.assertEqual(home.headers.get("X-Frame-Options"),"DENY")
+        self.assertIn("frame-ancestors 'none'",home.headers.get("Content-Security-Policy",""))
+        self.assertEqual(home.headers.get("Cross-Origin-Opener-Policy"),"same-origin")
+        self.assertEqual(home.headers.get("Cross-Origin-Resource-Policy"),"same-origin")
+        self.assertIn("no-store",home.headers.get("Cache-Control",""))
+        self.assertEqual(self.client.get("/termos").status_code,200)
+
+    def test_admin_bruteforce_is_throttled_without_exposing_leads(self):
+        for _ in range(8):
+            res=self.client.get("/admin/leads")
+            self.assertEqual(res.status_code,401)
+        blocked=self.client.get("/admin/leads")
+        self.assertEqual(blocked.status_code,429)
+        self.assertNotIn(b"Cliente Exemplo",blocked.data)
+
+    def test_export_sanitizes_spreadsheet_formula_injection_and_redirect(self):
+        import base64
+        from app import csv_safe
+        self.assertEqual(csv_safe("=1+1"),"'=1+1")
+        self.assertEqual(csv_safe("  @SUM(A1:A2)"),"'  @SUM(A1:A2)")
+        self.assertEqual(csv_safe("+Evil"),"'+Evil")
+        self.assertEqual(csv_safe("Cliente Bom"),"Cliente Bom")
+        key=base64.b64encode(b"ci-admin:ci-password-for-tests-only").decode()
+        headers={"Authorization":"Basic "+key}
+        with app.app_context():
+            sample=Lead(nome="=HYPERLINK(123)",whatsapp="91982736418",
+                         negocio="  @IMPORT",servico="Site Profissional",prazo="Em até 7 dias",
+                         objetivo="=1+2",origem="site")
+            db.session.add(sample)
+            db.session.commit()
+        response=self.client.get("/admin/export.csv",headers=headers)
+        self.assertEqual(response.status_code,200)
+        content=response.get_data(as_text=True)
+        self.assertIn("'=HYPERLINK(123)",content)
+        self.assertIn("'  @IMPORT",content)
+        self.assertIn("'=1+2",content)
+        page=self.client.get("/admin/leads",headers=headers)
+        self.assertEqual(page.status_code,200)
+        with self.client.session_transaction() as sess:
+            token=sess["admin_csrf"]
+        with app.app_context():
+            ident=Lead.query.first().id
+        status=self.client.post(
+            f"/admin/leads/{ident}/status",
+            data={"admin_csrf":token,"status":"proposta"},
+            headers={**headers,"Referer":"https://phishing.example/steal"}
+        )
+        self.assertTrue(status.headers.get("Location","").endswith("/admin/leads"))
+
+    def test_consent_evidence_is_created_for_live_budget_only(self):
+        payload=self.lead_data()
+        response=self.client.post("/lead",data=payload)
+        self.assertEqual(response.status_code,302)
+        with app.app_context():
+            logs=ConsentEvidence.query.all()
+            self.assertEqual(len(logs),1)
+            self.assertEqual(logs[0].purpose,"budget")
+            self.assertEqual(logs[0].privacy_version,"2026-11-16")
+            self.assertIsNone(logs[0].terms_version)
 
     def test_privacy_thanks_and_sitemap(self):
         self.assertEqual(self.client.get("/privacidade").status_code, 200)
