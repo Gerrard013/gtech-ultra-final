@@ -289,3 +289,26 @@ h1,h2,h3,.section-head h2,.hero h1,.spotlight h2,.contact-copy h2,.final-content
 @media(max-width:650px){
   .brand-icon,.topbar .brand-icon{width:53px!important;height:53px!important;min-width:53px!important;border-radius:11px!important}
 }
+
+/* Brand refinement: keep the authentic G shield AND its atomic ring complete,
+   with the original image lettering hidden only inside the 64px icon crop.
+   The G Tech name and tagline remain legible as live text beside it. */
+.brand-icon,.topbar .brand-icon{position:relative!important}
+.brand-icon img,.topbar .brand-icon img{
+  position:absolute!important;
+  display:block!important;
+  width:100px!important;height:100px!important;
+  max-width:none!important;max-height:none!important;
+  top:-7px!important;left:calc(50% - 50px)!important;
+  inset-block-end:auto!important;right:auto!important;
+  transform:none!important;object-fit:contain!important;object-position:center!important;
+  clip-path:inset(0 0 35% 0)!important;
+  background:#fff!important;
+}
+@media(max-width:650px){
+  .brand-icon img,.topbar .brand-icon img{
+    width:84px!important;height:84px!important;
+    top:-6px!important;left:calc(50% - 42px)!important;
+    clip-path:inset(0 0 35% 0)!important;
+  }
+}
