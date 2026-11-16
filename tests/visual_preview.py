@@ -58,6 +58,12 @@ try:
             page.evaluate("document.querySelector(\'#gtech-intro-skip\')?.click()")
             page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
+            page.evaluate("window.scrollTo({top:0,left:0,behavior:'instant'})")
+            page.wait_for_timeout(200)
+            assert page.locator(".brand-icon img").is_visible(), "Brand image not visible in header"
+            assert page.locator(".brand-icon img").evaluate("(el)=>el.complete && el.naturalWidth>0"), "Official logo image failed"
+            assert page.locator(".brand-icon img").evaluate("(el)=>getComputedStyle(el).objectFit") == "contain", "Original logo is cropped"
+            page.screenshot(path=str(DEST/f"{label}_header.png"),animations="disabled")
             assert page.locator("#solucoes .service-card").count()==6, "Six offers not present"
             assert page.locator("#projetos video").count()==4, "Four locally hosted project videos required"
             assert page.locator(".hero video#showcase-video").count()==1, "Belém Studio must feature in hero"
