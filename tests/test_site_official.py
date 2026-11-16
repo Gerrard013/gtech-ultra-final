@@ -244,56 +244,131 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(self.client.get("/comprar/google").status_code, 503)
         self.assertEqual(self.client.get("/comprar/nfc").status_code, 404)
 
-    def test_checkout_fixed_price_signed_bridge_without_real_transaction(self):
+    def test_single_catalog_prices_match_display_and_checkout(self):
+        from app import CHECKOUT_OFFERS, CATALOGO_GTECH
+        products=CATALOGO_GTECH["produtos"]
+        self.assertEqual(len(products), 6)
+        self.assertEqual(products["nfc"]["preco_centavos"], 7999)
+        self.assertEqual(products["site"]["preco_centavos"], 50000)
+        self.assertEqual(products["foto"]["preco_centavos"], 1000)
+        self.assertEqual(products["google"]["preco_centavos"], 15000)
+        self.assertEqual(products["cardapio"]["preco_centavos"], None)
+        self.assertEqual(CATALOGO_GTECH["planos"]["site_manutencao"]["preco_centavos"], 14999)
+        self.assertEqual(CATALOGO_GTECH["planos"]["site_sem_setup"]["preco_centavos"], 12999)
+        self.assertEqual(set(CHECKOUT_OFFERS), {"foto", "google"})
+        for service in SERVICES:
+            self.assertEqual(service["price"], products[service["id"]]["preco_exibicao"])
+
+    def test_direct_mercadopago_checkout_uses_server_amount_not_browser_input(self):
         import io
         import json
-        import hmac
-        import hashlib
         from app import CheckoutOrder
-        shared="test-only-checkout-secret-with-more-than-32-characters"
         captured=[]
         class FakeHTTP(io.BytesIO):
+            status = 201
             def __enter__(self): return self
             def __exit__(self,*_args): return False
 
         def fake_urlopen(req, timeout):
-            body=json.loads(req.data.decode("utf-8"))
-            signature=req.headers.get("X-gtech-signature") or req.headers.get("X-GTech-Signature")
-            expected="sha256="+hmac.new(shared.encode(),req.data,hashlib.sha256).hexdigest()
-            self.assertEqual(signature,expected)
-            self.assertEqual(req.full_url,"https://metasimples-production.up.railway.app/api/gtech/checkout")
-            self.assertEqual(body["sku"],"foto")
-            self.assertEqual(body["quantity"],1)
-            captured.append(body)
-            response={
-                "order_id":body["order_id"],"amount_cents":1000,
-                "checkout_url":"https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=unit-test"
-            }
-            return FakeHTTP(json.dumps(response).encode("utf-8"))
+            payload=json.loads(req.data.decode("utf-8"))
+            self.assertEqual(req.full_url,"https://api.mercadopago.com/checkout/preferences")
+            self.assertEqual(req.get_method(),"POST")
+            self.assertTrue(req.headers.get("Authorization","").startswith("Bearer APP_USR-test-"))
+            self.assertEqual(payload["items"][0]["unit_price"],10)
+            self.assertEqual(payload["items"][0]["currency_id"],"BRL")
+            self.assertEqual(payload["items"][0]["quantity"],1)
+            self.assertEqual(payload["external_reference"],"GTECH-"+req.headers["X-idempotency-key"])
+            self.assertEqual(payload["notification_url"],
+                "https://gtech-ultra-final-production.up.railway.app/webhooks/mercadopago")
+            captured.append(payload)
+            return FakeHTTP(json.dumps({
+                "id":"pref-test-only",
+                "init_point":"https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=mock"
+            }).encode("utf-8"))
 
-        with patch.dict(os.environ,{"GTECH_CHECKOUT_ENABLED":"true",
-                                   "GTECH_CHECKOUT_SHARED_SECRET":shared}):
+        env={
+            "GTECH_CHECKOUT_ENABLED":"true",
+            "MERCADOPAGO_ACCESS_TOKEN":"APP_USR-test-credential-not-valid",
+            "MERCADOPAGO_WEBHOOK_SECRET":"unit-test-key-gtech-signed-webhook-only",
+            "MERCADOPAGO_COLLECTOR_ID":"12345678",
+            "RAILWAY_ENVIRONMENT":"production",
+        }
+        with patch.dict(os.environ,env), patch("app._secure_db_available",return_value=True):
             page=self.client.get("/comprar/foto")
             self.assertEqual(page.status_code,200)
             self.assertIn(b"Ir ao Mercado Pago",page.data)
             with self.client.session_transaction() as sess:
                 token=sess["checkout_csrf"]
             with patch("urllib.request.urlopen",side_effect=fake_urlopen):
-                result=self.client.post("/comprar/foto",data={
+                response=self.client.post("/comprar/foto",data={
                     "csrf_token":token,"nome":"Cliente Exemplo",
-                    "whatsapp":"(91) 98273-6418",
-                    "consentimento":"yes",
-                    "price":"1",
+                    "whatsapp":"(91) 98273-6418","consentimento":"yes",
+                    "price":"1","total_cents":"1",
                 })
-            self.assertEqual(result.status_code,303,result.get_data(as_text=True))
-            self.assertTrue(result.location.startswith("https://www.mercadopago.com.br/checkout/"))
-            with app.app_context():
-                self.assertEqual(CheckoutOrder.query.count(),1)
-                order=CheckoutOrder.query.one()
-                self.assertEqual(order.total_cents,1000)
-                self.assertEqual(order.status,"pending")
-                self.assertEqual(Lead.query.count(),1)
-            self.assertEqual(len(captured),1)
+        self.assertEqual(response.status_code,303,response.get_data(as_text=True))
+        self.assertTrue(response.location.startswith("https://www.mercadopago.com.br/checkout/"))
+        self.assertEqual(len(captured),1)
+        with app.app_context():
+            self.assertEqual(CheckoutOrder.query.count(),1)
+            order=CheckoutOrder.query.one()
+            self.assertEqual(order.total_cents,1000)
+            self.assertEqual(order.status,"pending")
+            self.assertEqual(Lead.query.count(),1)
+
+    def test_payment_api_verifies_amount_merchant_and_reference(self):
+        from app import CheckoutOrder, _reconcile_mercadopago_payment
+        import uuid
+        order_id=str(uuid.uuid4())
+        with app.app_context():
+            lead=Lead(nome="Cliente Exemplo",whatsapp="91982736418",negocio="Teste",
+                      servico="Fotos ou Restauração",prazo="agora",
+                      objetivo="Restaurar fotografia",origem="checkout_gtech")
+            db.session.add(lead)
+            db.session.flush()
+            db.session.add(CheckoutOrder(id=order_id,lead_id=lead.id,sku="foto",
+                                         quantity=1,total_cents=1000,status="pending"))
+            db.session.commit()
+            good={"external_reference":"GTECH-"+order_id,"currency_id":"BRL",
+                  "collector_id":12345678,"transaction_amount":10.00,"status":"approved"}
+            with patch.dict(os.environ,{"MERCADOPAGO_COLLECTOR_ID":"12345678"}):
+                with patch("app._mp_request",return_value={**good,"transaction_amount":1}):
+                    self.assertFalse(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"pending")
+                with patch("app._mp_request",return_value={**good,"collector_id":1234}):
+                    self.assertFalse(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"pending")
+                with patch("app._mp_request",return_value={**good,"external_reference":"GTECH-other"}):
+                    self.assertFalse(_reconcile_mercadopago_payment("1234567"))
+                with patch("app._mp_request",return_value=good):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"approved")
+                with patch("app._mp_request",return_value={**good,"status":"refunded"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"refunded")
+
+    def test_mercadopago_webhook_requires_signature_and_authentication(self):
+        import time
+        import hmac
+        import hashlib
+        from app import _verified_mercadopago_webhook
+        payload={"data":{"id":"123456789"}}
+        env={
+            "MERCADOPAGO_WEBHOOK_SECRET":"unit-test-secret-shared-for-hmac",
+        }
+        ts=str(int(time.time()*1000))
+        rid="req-mp-123"
+        manifest=f"id:123456789;request-id:{rid};ts:{ts};"
+        signature=hmac.new(env["MERCADOPAGO_WEBHOOK_SECRET"].encode(),manifest.encode(),hashlib.sha256).hexdigest()
+        with patch.dict(os.environ,env),patch("app._checkout_enabled",return_value=True):
+            invalid=self.client.post("/webhooks/mercadopago",json=payload)
+            self.assertEqual(invalid.status_code,401)
+            with patch("app._reconcile_mercadopago_payment",return_value=True) as sync:
+                result=self.client.post("/webhooks/mercadopago",json=payload,headers={
+                    "X-Signature":f"ts={ts},v1={signature}",
+                    "X-Request-Id":rid
+                })
+                self.assertEqual(result.status_code,200)
+                sync.assert_called_once_with("123456789")
 
     def test_payment_return_query_cannot_fake_approval(self):
         from app import CheckoutOrder
