@@ -644,34 +644,28 @@ def checkout_product(sku: str):
         return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
                                csrf_token=session["checkout_csrf"])
 
-    if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
-        abort(403)
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
         abort(400)
     if request.form.get("website", "") or request.form.get("consentimento") != "yes":
         abort(400)
     if excessive_lead_submissions(request.remote_addr or "unknown"):
-        return Response("Muitas tentativas, tente novamente mais tarde.", status=429)
+        return Response("Muitas tentativas. Tente novamente mais tarde.", status=429)
 
     name = clean_text(request.form.get("nome"), 100)
     phone = clean_text(request.form.get("whatsapp"), 40)
     if len(name) < 2 or not valid_phone(phone):
         flash("Confira seu nome e celular com DDD.", "error")
         return redirect(url_for("checkout_product", sku=sku))
-    if len(_checkout_bridge_secret()) < 32:
-        flash("O pagamento online está temporariamente indisponível. Fale conosco pelo WhatsApp.", "error")
-        return redirect(url_for("checkout_product", sku=sku))
 
     lead = Lead(
         nome=name, whatsapp=normalize_mobile(phone) or phone, negocio="Cliente de checkout",
         servico="Fotos ou Restauração" if sku == "foto" else "Perfil da Empresa no Google",
-        prazo="O mais rápido possível", objetivo="Pedido de checkout G Tech: " + offer["title"],
+        prazo="O mais rápido possível", objetivo="Pedido G Tech: " + offer["title"],
         origem="checkout_gtech"
     )
-    order_id = str(uuid.uuid4())
     order = CheckoutOrder(
-        id=order_id, lead_id=0, sku=sku, quantity=1,
+        id=str(uuid.uuid4()), lead_id=0, sku=sku, quantity=1,
         total_cents=offer["cents"], status="pending"
     )
     try:
@@ -680,27 +674,37 @@ def checkout_product(sku: str):
         order.lead_id = lead.id
         db.session.add(order)
         db.session.commit()
-
-        payload = json.dumps(
-            {"order_id": order_id, "sku": sku, "quantity": 1},
-            separators=(",", ":"), sort_keys=True
-        ).encode("utf-8")
-        req = _signed_gateway_request("/api/gtech/checkout", payload)
-        with urllib.request.urlopen(req, timeout=14) as response:
-            result = json.load(response)
-        gateway_url = str(result.get("checkout_url") or "")
-        if result.get("order_id") != order_id or result.get("amount_cents") != offer["cents"] or not _is_mercadopago_link(gateway_url):
-            raise ValueError("Checkout retornou dados diferentes do pedido.")
+        gateway_url = _create_mercadopago_preference(order, offer["title"])
         order.checkout_url = gateway_url
         db.session.commit()
-        session["last_checkout_order"] = order_id
+        session["last_checkout_order"] = order.id
         return redirect(gateway_url, code=303)
     except Exception as exc:
         db.session.rollback()
-        current_app = app
-        current_app.logger.warning("G Tech Checkout indisponível: %s", type(exc).__name__)
-        # Lead/order survive a gateway failure and can be recovered in the admin.
-        return redirect(url_for("payment_result", order_id=order_id))
+        app.logger.warning("Mercado Pago: criação indisponível: %s", type(exc).__name__)
+        # Preserve lead/order for recovery. Do not declare a payment successful.
+        return redirect(url_for("payment_result", order_id=order.id))
+
+
+@app.post("/webhooks/mercadopago")
+def gtech_mercadopago_webhook():
+    if not _checkout_enabled():
+        return {"status": "unavailable"}, 503
+    data = request.get_json(silent=True) or {}
+    nested = data.get("data") if isinstance(data, dict) else None
+    payment_id = str(
+        request.args.get("data.id") or (nested.get("id") if isinstance(nested, dict) else "") or ""
+    )
+    if not re.fullmatch(r"[0-9]{1,25}", payment_id):
+        return {"status": "ignored"}, 200
+    if not _verified_mercadopago_webhook(payment_id):
+        return {"error": "Assinatura inválida"}, 401
+    try:
+        if _reconcile_mercadopago_payment(payment_id):
+            return {"status": "received"}, 200
+    except Exception as exc:
+        app.logger.warning("Mercado Pago: webhook sem conciliação: %s", type(exc).__name__)
+    return {"status": "pending_verification"}, 202
 
 
 @app.route("/pedido/<order_id>")
@@ -713,21 +717,14 @@ def payment_result(order_id: str):
     order = db.session.get(CheckoutOrder, order_id)
     if not order:
         abort(404)
-    # No browser query parameter can mark a payment as approved.
-    if _checkout_enabled() and len(_checkout_bridge_secret()) >= 32:
+    # A return URL status is never considered proof. The payment ID is also
+    # rechecked using the token-bound merchant's API, amount and reference.
+    payment_id = str(request.args.get("payment_id") or request.args.get("collection_id") or "")
+    if _checkout_enabled() and re.fullmatch(r"[0-9]{1,25}", payment_id):
         try:
-            req = _signed_gateway_request("/api/gtech/status/" + order_id)
-            with urllib.request.urlopen(req, timeout=6) as response:
-                result = json.load(response)
-            if (result.get("order_id") == order_id and
-                result.get("amount_cents") == order.total_cents and
-                result.get("sku") == order.sku and
-                result.get("status") in {"pending", "approved", "in_process", "rejected", "refunded", "cancelled", "charged_back"}):
-                if order.status != "approved" or result["status"] == "approved":
-                    order.status = result["status"]
-                    db.session.commit()
+            _reconcile_mercadopago_payment(payment_id, order_id=order_id)
         except Exception as exc:
-            app.logger.info("Verificação de pagamento pendente: %s", type(exc).__name__)
+            app.logger.info("Mercado Pago: pagamento em verificação: %s", type(exc).__name__)
     return render_template("pedido.html", order=order, contacts=CONTACTS)
 
 
