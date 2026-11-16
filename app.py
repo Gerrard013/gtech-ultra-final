@@ -44,6 +44,11 @@ def normalize_database_url(url: str | None) -> str:
     return url
 
 
+# Public site origin for canonical links and payment callbacks (not Host-header-derived).
+PUBLIC_SITE_URL = os.getenv("GTECH_PUBLIC_URL", "https://gtech-oficial.up.railway.app").strip().rstrip("/")
+if not PUBLIC_SITE_URL.startswith("https://") or "@" in PUBLIC_SITE_URL:
+    raise RuntimeError("GTECH_PUBLIC_URL precisa ser origem HTTPS.")
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 os.makedirs(INSTANCE_DIR, exist_ok=True)
@@ -217,7 +222,7 @@ def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, reque
 
 def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
     """The price is read from the persisted order, not from the request/browser."""
-    base = "https://gtech-ultra-final-production.up.railway.app"
+    base = PUBLIC_SITE_URL
     item = {
         "id": order.sku,
         "title": title,
@@ -548,6 +553,7 @@ def index():
         session["lead_csrf"] = secrets.token_urlsafe(32)
     return render_template(
         "index.html",
+        public_site_url=PUBLIC_SITE_URL,
         contacts=CONTACTS,
         services=SERVICES,
         checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
@@ -981,7 +987,7 @@ def robots():
 
 @app.route("/sitemap.xml")
 def sitemap():
-    base = "https://gtech-ultra-final-production.up.railway.app"
+    base = PUBLIC_SITE_URL
     content = (
         '<?xml version="1.0" encoding="UTF-8"?>'
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
