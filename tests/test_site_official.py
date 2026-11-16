@@ -302,7 +302,7 @@ class OfficialSiteTests(unittest.TestCase):
             with patch("urllib.request.urlopen",side_effect=fake_urlopen):
                 response=self.client.post("/comprar/foto",data={
                     "csrf_token":token,"nome":"Cliente Exemplo",
-                    "whatsapp":"(91) 98273-6418","consentimento":"yes",
+                    "whatsapp":"(91) 98273-6418","consentimento":"yes", "termos":"yes",
                     "price":"1","total_cents":"1",
                 })
         self.assertEqual(response.status_code,303,response.get_data(as_text=True))
@@ -405,6 +405,35 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIn(b"Aguardando",result.data)
         with app.app_context():
             self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"pending")
+
+    def test_terms_and_privacy_are_available_and_checkout_requires_terms(self):
+        policy=self.client.get("/privacidade")
+        self.assertEqual(policy.status_code,200)
+        self.assertIn(b"gtech_cookie_choice_v2",policy.data)
+        terms=self.client.get("/termos")
+        self.assertEqual(terms.status_code,200)
+        self.assertIn(b"Termos de servi",terms.data)
+        self.assertIn(b"70.125.976/0001-76",terms.data)
+        with patch.dict(os.environ,{"RAILWAY_ENVIRONMENT":"preview"}):
+            page=self.client.get("/comprar/foto")
+            self.assertEqual(page.status_code,200)
+            self.assertIn(b'name="termos"',page.data)
+
+    def test_preview_has_editable_form_but_never_collects_real_data(self):
+        with patch.dict(os.environ,{"RAILWAY_ENVIRONMENT":"preview"}):
+            page=self.client.get("/")
+            self.assertEqual(page.status_code,200)
+            html=page.get_data(as_text=True)
+            self.assertIn('data-demo="true"',html)
+            self.assertIn('class="briefing-fields"',html)
+            self.assertNotIn('class="briefing-fields" disabled',html)
+            self.assertNotIn('class="preview-banner"',html)
+            self.assertIn("Ambiente de homologação",html)
+            payload=self.lead_data()
+            blocked=self.client.post("/lead",data=payload)
+            self.assertEqual(blocked.status_code,403)
+            with app.app_context():
+                self.assertEqual(Lead.query.count(),0)
 
     def test_privacy_thanks_and_sitemap(self):
         self.assertEqual(self.client.get("/privacidade").status_code, 200)
