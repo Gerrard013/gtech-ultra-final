@@ -491,7 +491,7 @@ def index():
         "index.html",
         contacts=CONTACTS,
         services=SERVICES,
-        checkout_enabled=_checkout_enabled(),
+        checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
         csrf_token=session["lead_csrf"],
@@ -635,14 +635,15 @@ def create_lead():
 def checkout_product(sku: str):
     if sku not in CHECKOUT_OFFERS:
         abort(404)
-    if not _checkout_enabled():
+    preview_only = os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview"
+    if not _checkout_enabled() and not (preview_only and request.method == "GET"):
         abort(503)
     offer = CHECKOUT_OFFERS[sku]
     if "checkout_csrf" not in session:
         session["checkout_csrf"] = secrets.token_urlsafe(32)
     if request.method == "GET":
         return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
-                               csrf_token=session["checkout_csrf"])
+                               csrf_token=session["checkout_csrf"], preview_only=preview_only)
 
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
