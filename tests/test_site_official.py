@@ -370,6 +370,23 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(result.status_code,200)
                 sync.assert_called_once_with("123456789")
 
+    def test_preview_checkout_is_read_only_and_never_charges(self):
+        with patch.dict(os.environ, {"RAILWAY_ENVIRONMENT": "preview",
+                                    "GTECH_CHECKOUT_ENABLED": "true",
+                                    "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-only",
+                                    "MERCADOPAGO_WEBHOOK_SECRET": "unit-secret-not-live-123456",
+                                    "MERCADOPAGO_COLLECTOR_ID": "12345678"}):
+            page=self.client.get("/comprar/foto")
+            self.assertEqual(page.status_code,200)
+            self.assertIn(b"Pagamento indispon",page.data)
+            home=self.client.get("/")
+            self.assertIn(b"Visualizar compra",home.data)
+            with patch("urllib.request.urlopen",side_effect=AssertionError("No payment network calls in preview")):
+                blocked=self.client.post("/comprar/foto",data={"nome":"Cliente de Teste"})
+            self.assertEqual(blocked.status_code,503)
+            with app.app_context():
+                self.assertEqual(Lead.query.count(),0)
+
     def test_payment_return_query_cannot_fake_approval(self):
         from app import CheckoutOrder
         import uuid
