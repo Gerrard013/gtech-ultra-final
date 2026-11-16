@@ -14,7 +14,7 @@ import threading
 import uuid
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from collections import defaultdict, deque
 from functools import wraps
@@ -150,6 +150,20 @@ class CheckoutOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CheckoutPaymentDelivery(db.Model):
+    """Persistent payment outbox: a CRM outage never loses a gateway notification."""
+    __tablename__ = "gtech_checkout_payment_deliveries"
+    payment_id = db.Column(db.String(25), primary_key=True)
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), nullable=False, index=True)
+    status = db.Column(db.String(30), nullable=False)
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    delivered_revision = db.Column(db.Integer, nullable=False, default=0)
+    attempts = db.Column(db.Integer, nullable=False, default=0)
+    next_attempt_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    delivered_at = db.Column(db.DateTime, nullable=True)
+
+
 # The catalogue is the single source of prices for both storefront and Checkout Pro.
 # Prices in cents are edited in config/catalogo_gtech.json, NEVER in checkout URLs.
 with open(os.path.join(BASE_DIR, "config", "catalogo_gtech.json"), encoding="utf-8") as catalog_file:
@@ -275,7 +289,8 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     pid = external_reference.removeprefix("GTECH-")
     if order_id and pid != order_id:
         return False
-    order = db.session.get(CheckoutOrder, pid)
+    # Serialize updates for the same order (including different card attempts).
+    order = CheckoutOrder.query.filter_by(id=pid).with_for_update().first()
     if not order:
         return False
     if data.get("currency_id") != "BRL" or str(data.get("collector_id")) != os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip():
@@ -292,12 +307,23 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     allowed = {"approved", "pending", "in_process", "rejected", "cancelled", "refunded", "charged_back"}
     if status not in allowed:
         return False
-    if status in {"refunded", "charged_back"}:
-        # A later reversal may invalidate a previously approved payment.
-        order.status = status
-    elif order.status not in {"approved", "refunded", "charged_back"}:
-        order.status = status
+    delivery = db.session.get(CheckoutPaymentDelivery, str(payment_id))
+    if delivery is None:
+        delivery = CheckoutPaymentDelivery(payment_id=str(payment_id), order_id=pid, status=status,
+                                           revision=1, delivered_revision=0, attempts=0)
+        db.session.add(delivery)
+    else:
+        delivery.revision += 1
+        delivery.status = status
+    delivery.updated_at = datetime.utcnow()
+    delivery.next_attempt_at = datetime.utcnow()
+    db.session.flush()
+    payment_statuses = {p.status for p in CheckoutPaymentDelivery.query.filter_by(order_id=pid).all()}
+    # A rejected retry must not overwrite another successful payment for the order.
+    order.status = next((s for s in ("approved", "charged_back", "refunded", "in_process", "pending", "rejected", "cancelled")
+                         if s in payment_statuses), status)
     db.session.commit()
+    sync_payment_to_crm(str(payment_id))
     return True
 
 
@@ -601,6 +627,7 @@ def index():
 
 
 CRM_SITE_ENDPOINT = "https://web-production-846ce.up.railway.app/api/integrations/site/lead"
+CRM_PAYMENT_ENDPOINT = "https://web-production-846ce.up.railway.app/api/integrations/site-payments"
 CRM_PRODUCT_MAP = {
     "Placa NFC Personalizada": "nfc",
     "Site Profissional": "site",
@@ -682,6 +709,89 @@ def sync_lead_to_crm(lead: Lead, city: str) -> bool:
         db.session.rollback()
         app.logger.warning("G Tech CRM sync pending; no lead lost locally. Failure type %s", type(exc).__name__)
         return False
+
+
+def sync_payment_to_crm(payment_id: str) -> bool:
+    """Send an authenticated order hint; CRM independently verifies the payment at MP."""
+    if os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() != "true":
+        return False
+    secret = os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()
+    if len(secret) < 32:
+        return False
+    delivery = db.session.get(CheckoutPaymentDelivery, payment_id)
+    if delivery is None:
+        return False
+    revision = delivery.revision
+    if delivery.delivered_revision == revision:
+        return True
+    order = db.session.get(CheckoutOrder, delivery.order_id)
+    lead = db.session.get(Lead, order.lead_id) if order else None
+    evidence = (ConsentEvidence.query.filter_by(lead_id=lead.id, purpose="checkout").first()
+                if lead else None)
+    if not order or not lead or not evidence or not evidence.terms_version:
+        return False
+    mobile = re.sub(r"\D", "", lead.whatsapp)
+    if not mobile.startswith("55"):
+        mobile = "55" + mobile
+    payload = {
+        "siteOrderId": order.id, "siteLeadId": lead.id, "paymentId": payment_id,
+        "externalReference": "GTECH-" + order.id, "amountCents": order.total_cents,
+        "currency": "BRL", "payerName": lead.nome, "phone": mobile,
+        "productSlug": order.sku, "productTitle": CHECKOUT_OFFERS[order.sku]["title"],
+        "quantity": order.quantity, "status": delivery.status,
+        "privacyVersion": evidence.privacy_version, "termsVersion": evidence.terms_version,
+    }
+    data = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    ts = str(int(time.time()))
+    digest = hmac.new(secret.encode("utf-8"), ts.encode("ascii") + b"." + data, hashlib.sha256).hexdigest()
+    req = urllib.request.Request(CRM_PAYMENT_ENDPOINT, data=data, method="POST", headers={
+        "Content-Type": "application/json", "X-GTech-Timestamp": ts,
+        "X-GTech-Signature": "sha256=" + digest,
+    })
+    delivery.attempts += 1
+    attempts = delivery.attempts
+    delivery.next_attempt_at = datetime.utcnow() + timedelta(seconds=min(300, 10 * 2 ** min(attempts, 5)))
+    db.session.commit()
+    try:
+        with urllib.request.urlopen(req, timeout=5) as response:
+            result = json.load(response)
+            if response.status not in (200, 201) or result.get("ok") is not True:
+                raise ValueError("CRM did not confirm payment")
+        # A new webhook received during the request remains pending for its own revision.
+        CheckoutPaymentDelivery.query.filter_by(payment_id=payment_id, revision=revision).update({
+            "delivered_revision": revision, "delivered_at": datetime.utcnow(),
+        })
+        db.session.commit()
+        return True
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning("G Tech payment sync queued (%s)", type(exc).__name__)
+        return False
+
+
+def retry_pending_payments() -> int:
+    pending = (CheckoutPaymentDelivery.query.filter(
+        CheckoutPaymentDelivery.delivered_revision < CheckoutPaymentDelivery.revision,
+        CheckoutPaymentDelivery.next_attempt_at <= datetime.utcnow(),
+    ).order_by(CheckoutPaymentDelivery.next_attempt_at).limit(10).all())
+    return sum(sync_payment_to_crm(item.payment_id) for item in pending)
+
+
+def _start_payment_sync_worker():
+    if os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() != "true":
+        return
+    def run():
+        while True:
+            with app.app_context():
+                try:
+                    retry_pending_payments()
+                except Exception as exc:
+                    db.session.rollback()
+                    app.logger.warning("Payment retry worker: %s", type(exc).__name__)
+                finally:
+                    db.session.remove()
+            time.sleep(30)
+    threading.Thread(target=run, name="gtech-payment-outbox", daemon=True).start()
 
 
 @app.get("/api/form-token")
@@ -1053,6 +1163,9 @@ def health():
 @app.errorhandler(404)
 def not_found(_error):
     return render_template("404.html", contacts=CONTACTS), 404
+
+
+_start_payment_sync_worker()
 
 
 if __name__ == "__main__":

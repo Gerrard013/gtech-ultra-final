@@ -13,6 +13,7 @@ os.environ["SECRET_KEY"] = "gtech-ci-test-only-secret-never-use-in-production"
 os.environ["ADMIN_USER"] = "ci-admin"
 os.environ["ADMIN_PASS"] = "ci-password-for-tests-only"
 os.environ["CRM_LEAD_SYNC_ENABLED"] = "false"
+os.environ["CRM_PAYMENT_SYNC_ENABLED"] = "false"
 
 from app import (app, db, Lead, ConsentEvidence, SERVICES, _lead_attempts, _lead_attempts_lock,
                  _admin_failed, _admin_failed_lock, normalize_mobile)
@@ -444,6 +445,83 @@ class OfficialSiteTests(unittest.TestCase):
                 with patch("app._mp_request",return_value={**good,"status":"refunded"}):
                     self.assertTrue(_reconcile_mercadopago_payment("1234567"))
                 self.assertEqual(db.session.get(CheckoutOrder,order_id).status,"refunded")
+
+    def test_payment_outbox_retries_failure_and_signs_exact_body(self):
+        import hashlib
+        import hmac
+        import io
+        import json
+        import uuid
+        from datetime import datetime, timedelta
+        from app import (CheckoutOrder, CheckoutPaymentDelivery, _reconcile_mercadopago_payment,
+                         retry_pending_payments, sync_payment_to_crm)
+        order_id = str(uuid.uuid4())
+        secret = "test-shared-payment-key-" + "a" * 32
+        with app.app_context():
+            lead = Lead(nome="Cliente Exemplo", whatsapp="91982736418", negocio="Teste",
+                        servico="Fotos ou Restauração", prazo="agora", objetivo="Restaurar foto")
+            db.session.add(lead)
+            db.session.flush()
+            db.session.add(CheckoutOrder(id=order_id, lead_id=lead.id, sku="foto", total_cents=1000))
+            db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", terms_version="2026-11-16"))
+            db.session.commit()
+            good = {"external_reference": "GTECH-" + order_id, "currency_id": "BRL",
+                    "collector_id": 12345678, "transaction_amount": 10, "status": "approved"}
+            with patch.dict(os.environ, {"MERCADOPAGO_COLLECTOR_ID": "12345678",
+                                        "CRM_PAYMENT_SYNC_ENABLED": "true", "GTECH_SITE_LEAD_SECRET": secret}):
+                with patch("app._mp_request", return_value=good), patch("urllib.request.urlopen", side_effect=TimeoutError):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                queued = db.session.get(CheckoutPaymentDelivery, "1234567")
+                self.assertEqual(queued.delivered_revision, 0)
+                self.assertEqual(queued.attempts, 1)
+                self.assertEqual(db.session.get(CheckoutOrder, order_id).status, "approved")
+                queued.next_attempt_at = datetime.utcnow() - timedelta(seconds=1)
+                db.session.commit()
+                def receive(req, **kwargs):
+                    self.assertEqual(req.full_url, "https://web-production-846ce.up.railway.app/api/integrations/site-payments")
+                    timestamp = req.get_header("X-gtech-timestamp")
+                    digest = hmac.new(secret.encode(), timestamp.encode() + b"." + req.data, hashlib.sha256).hexdigest()
+                    self.assertEqual(req.get_header("X-gtech-signature"), "sha256=" + digest)
+                    body = json.loads(req.data)
+                    self.assertEqual(body["paymentId"], "1234567")
+                    self.assertEqual(body["amountCents"], 1000)
+                    self.assertEqual(body["phone"], "5591982736418")
+                    self.assertEqual(body["termsVersion"], "2026-11-16")
+                    response = io.BytesIO(b'{"ok":true}')
+                    response.status = 200
+                    return response
+                with patch("urllib.request.urlopen", side_effect=receive) as receiver:
+                    self.assertEqual(retry_pending_payments(), 1)
+                    self.assertTrue(sync_payment_to_crm("1234567"))
+                    self.assertEqual(receiver.call_count, 1)
+                db.session.refresh(queued)
+                self.assertEqual(queued.revision, queued.delivered_revision)
+                # A refund notification schedules another delivery for the same payment.
+                with patch("app._mp_request", return_value={**good, "status": "refunded"}), patch("urllib.request.urlopen", side_effect=TimeoutError):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                self.assertGreater(queued.revision, queued.delivered_revision)
+                self.assertEqual(db.session.get(CheckoutOrder, order_id).status, "refunded")
+
+    def test_rejected_card_retry_does_not_erase_an_approved_payment(self):
+        import uuid
+        from app import CheckoutOrder, _reconcile_mercadopago_payment, CheckoutPaymentDelivery
+        order_id = str(uuid.uuid4())
+        with app.app_context():
+            lead = Lead(nome="Cliente Exemplo", whatsapp="91982736418", negocio="Teste",
+                        servico="Fotos ou Restauração", prazo="agora", objetivo="Restaurar foto")
+            db.session.add(lead)
+            db.session.flush()
+            db.session.add(CheckoutOrder(id=order_id, lead_id=lead.id, sku="foto", total_cents=1000))
+            db.session.commit()
+            good = {"external_reference": "GTECH-" + order_id, "currency_id": "BRL",
+                    "collector_id": 12345678, "transaction_amount": 10, "status": "approved"}
+            with patch.dict(os.environ, {"MERCADOPAGO_COLLECTOR_ID": "12345678"}):
+                with patch("app._mp_request", return_value=good):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234567"))
+                with patch("app._mp_request", return_value={**good, "status": "rejected"}):
+                    self.assertTrue(_reconcile_mercadopago_payment("1234568"))
+            self.assertEqual(db.session.get(CheckoutOrder, order_id).status, "approved")
+            self.assertEqual(CheckoutPaymentDelivery.query.count(), 2)
 
     def test_mercadopago_webhook_requires_signature_and_authentication(self):
         import time
