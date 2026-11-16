@@ -243,11 +243,11 @@
   <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><a href="{{ url_for('terms_of_service') }}">Termos de serviço</a><button type="button" class="footer-cookie-button" id="cookie-settings">Preferências de cookies</button><span>© {{ year }} G Tech</span>{% if drive_preview_enabled %}<small class="footer-staging-note">Ambiente de homologação — sem coleta de contatos ou pagamentos</small>{% endif %}</div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
   <aside class="cookie-notice" id="cookie-notice" role="dialog" aria-modal="false" aria-labelledby="cookie-title" hidden>
     <div class="cookie-copy"><strong id="cookie-title">Sua privacidade importa</strong>
-      <p>O site utiliza cookie essencial para proteção do formulário. Recursos opcionais só serão usados mediante sua escolha; não há rastreamento de anúncios ativo nesta versão. <a href="{{ url_for('privacy_policy') }}">Ver política</a>.</p>
+      <p>Utilizamos cookie essencial de sessão para proteger o formulário. Sua preferência fica registrada em cookie próprio por até 180 dias e pode ser alterada a qualquer momento. Não usamos cookies de publicidade ou analytics nesta versão. <a href="{{ url_for('privacy_policy') }}">Ver política</a>.</p>
     </div>
     <div class="cookie-actions">
       <button type="button" class="cookie-reject" data-cookie-choice="essential">Somente essenciais</button>
-      <button type="button" class="cookie-accept" data-cookie-choice="all">Aceitar opcionais</button>
+      <button type="button" class="cookie-accept" data-cookie-choice="preferences">Lembrar minhas preferências</button>
     </div>
   </aside>
   <div class="mobile-actions" aria-label="Acesso rápido no celular"><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="#contato">Orçamento ↗</a></div>
