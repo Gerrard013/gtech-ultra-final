@@ -193,7 +193,7 @@ SERVICES = [
         "description": "Sua empresa com uma vitrine clara, responsiva e pronta para receber contatos. Manutenção contratada separadamente."
     },
     {
-        "id": "google", "title": "Perfil da Empresa no Google",
+        "id": "google", "title": "Perfil da Empresa no Google", "checkout_sku": "google",
         "form_value": "Perfil da Empresa no Google", "symbol": "⌖",
         "category": "PRESENÇA LOCAL", "price": "R$ 150",
         "description": "Revisão e organização de informações do perfil empresarial, quando elegível. Serviço independente do Google."
@@ -205,7 +205,7 @@ SERVICES = [
         "description": "Cardápio interativo pensado para celular, com produtos, categorias, QR Code e caminho simples para pedidos."
     },
     {
-        "id": "foto", "title": "Restauração de Fotografias",
+        "id": "foto", "title": "Restauração de Fotografias", "checkout_sku": "foto",
         "form_value": "Fotos ou Restauração", "symbol": "▧",
         "category": "IMAGEM E MEMÓRIA", "price": "A partir de R$ 10",
         "description": "Recuperação cuidadosa de fotos antigas, preservando características e respeitando a imagem original."
@@ -358,6 +358,7 @@ def index():
         "index.html",
         contacts=CONTACTS,
         services=SERVICES,
+        checkout_enabled=_checkout_enabled(),
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
         csrf_token=session["lead_csrf"],
