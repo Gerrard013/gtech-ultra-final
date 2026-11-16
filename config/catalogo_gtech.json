@@ -1,0 +1,65 @@
+{
+  "aviso": "Catálogo base G Tech (16/11/2026). Atualizar após confirmação de preço e condições. Valores em centavos; não ajustar apenas textos.",
+  "moeda": "BRL",
+  "produtos": {
+    "nfc": {
+      "titulo": "Plaquinha NFC personalizada",
+      "preco_centavos": 7999,
+      "preco_exibicao": "R$ 79,99",
+      "checkout_direto": false,
+      "observacao": "Configuração incluída. Confirmar entrega, frete e estoque antes de cobrar."
+    },
+    "site": {
+      "titulo": "Criação de site profissional",
+      "preco_centavos": 50000,
+      "preco_exibicao": "A partir de R$ 500",
+      "checkout_direto": false,
+      "observacao": "Valor inicial do desenvolvimento. Confirmar escopo e manutenção separadamente."
+    },
+    "google": {
+      "titulo": "Perfil da Empresa no Google",
+      "preco_centavos": 15000,
+      "preco_exibicao": "R$ 150",
+      "checkout_direto": true,
+      "observacao": "Serviço independente do Google, sujeito a elegibilidade e escopo."
+    },
+    "cardapio": {
+      "titulo": "Cardápio digital premium",
+      "preco_centavos": null,
+      "preco_exibicao": "Sob orçamento",
+      "checkout_direto": false,
+      "observacao": "Escopo personalizado; nenhuma cobrança antes de proposta."
+    },
+    "foto": {
+      "titulo": "Restauração de fotografia",
+      "preco_centavos": 1000,
+      "preco_exibicao": "A partir de R$ 10",
+      "checkout_direto": true,
+      "observacao": "Valor para restauração básica de uma foto. Casos complexos sob orçamento."
+    },
+    "automacao": {
+      "titulo": "Automações e soluções digitais",
+      "preco_centavos": null,
+      "preco_exibicao": "Sob orçamento",
+      "checkout_direto": false,
+      "observacao": "Orçamento para automações, integrações e aplicativos."
+    }
+  },
+  "planos": {
+    "site_manutencao": {
+      "titulo": "Manutenção tradicional de site",
+      "preco_centavos": 14999,
+      "periodicidade": "mensal",
+      "checkout_direto": false,
+      "observacao": "Pagamento recorrente sujeito a contrato e mecanismo de assinatura ainda não ativado."
+    },
+    "site_sem_setup": {
+      "titulo": "Site sem setup - promoção de entrada",
+      "preco_centavos": 12999,
+      "periodicidade": "mensal",
+      "meses_minimos": 12,
+      "checkout_direto": false,
+      "observacao": "Compromisso mínimo de 12 meses, contrato e mecanismo de assinatura pendentes de aprovação."
+    }
+  }
+}

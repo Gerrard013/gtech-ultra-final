@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#07111f"><meta name="description" content="Como a G Tech trata dados pessoais, pedidos, cookies e direitos dos titulares.">
+<title>Política de Privacidade | G Tech</title>
+<link rel="icon" href="{{ url_for('static',filename='assets/favicon.png') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='official.css') }}">
+<style>.legal{max-width:840px;margin:auto;padding:80px 20px 110px}.legal h1{font-size:clamp(39px,7vw,64px);line-height:1.08}.legal h2{font-size:clamp(22px,3vw,30px);margin-top:34px}.legal p,.legal li{color:#c2d1e1;line-height:1.8;font-size:15px}.legal a{color:#66deef;text-decoration:underline;text-underline-offset:3px}.legal ul{padding-left:20px}.legal .small{font-size:12px;color:#92aec2}.legal .notice{padding:18px;border:1px solid #38718e;background:#112a41;border-radius:14px}</style></head>
+<body><header class="topbar"><div class="topbar-inner"><a class="brand" href="{{ url_for('index') }}"><span class="brand-icon"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" width="160" height="160" alt=""></span><span class="brand-type">G Tech<small>INNOVATION &amp; SOLUTIONS</small></span></a><a class="header-cta" href="{{ url_for('index') }}">Voltar ao site ↗</a></div></header>
+<main class="legal">
+<span class="eyebrow">G TECH • LGPD E TRANSPARÊNCIA</span>
+<h1>Política de privacidade</h1><p class="small">Versão de 16/11/2026.</p>
+<p class="notice">A G Tech utiliza dados pessoais para responder pedidos de orçamento, executar serviços e registrar pedidos quando a contratação está habilitada. O envio de um orçamento não autoriza campanhas publicitárias automaticamente.</p>
+<h2>1. Controlador e contato</h2>
+<p>G Tech | Innovation &amp; Solutions, CNPJ <strong>70.125.976/0001-76</strong>, Belém/PA, Brasil. Entre em contato por <a href="{{ contacts.email }}">{{ contacts.email_text }}</a> ou WhatsApp <a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">{{ contacts.display_phone }}</a> para exercer direitos ou tirar dúvidas sobre seus dados pessoais.</p>
+<h2>2. Dados coletados</h2>
+<p>Nos pedidos de orçamento: nome, celular/WhatsApp, serviço de interesse, descrição da necessidade e, opcionalmente, empresa e cidade. Para compras: dados de contato, identificador do pedido, produto, valor, situação do pagamento e registros indispensáveis à operação. Não solicitamos número completo do cartão nem CVV no site. Podem existir dados técnicos de segurança e acesso registrados pelos provedores de hospedagem, necessários à operação e prevenção de abuso.</p>
+<h2>3. Finalidades e fundamentos</h2>
+<p>Responder sua solicitação, avaliar orçamento, executar medidas anteriores à contratação, cumprir contratos, prestar suporte, proteger o site contra fraude e cumprir obrigações legais/fiscais. Quando a lei exigir consentimento, apresentaremos pedido específico e possibilidade de revogação. Dados de propostas não devem ser usados para publicidade sem fundamento e transparência adequados.</p>
+<h2>4. Operadores e terceiros</h2>
+<p>O site utiliza infraestrutura de hospedagem e banco de dados. Uma integração com o CRM da G Tech pode ser habilitada mediante validação técnica para acompanhar atendimento, mas não deve ser presumida como ativa. Pagamentos online, quando ativados, são processados em página segura do Mercado Pago, sujeito também à política da plataforma. Fontes externas podem ser carregadas do Google Fonts; os vídeos de portfólio estão hospedados no próprio projeto. Não vendemos listas de contatos.</p>
+<h2>5. Cookies e escolhas</h2>
+<p>O cookie de sessão é necessário à proteção CSRF do formulário e à navegação segura. O site também utiliza um cookie de preferência de primeira parte, chamado <code>gtech_cookie_choice_v2</code>, para lembrar por até 180 dias a opção escolhida no aviso. Os botões permitem continuar com essenciais ou lembrar sua preferência; ambos não ativam rastreadores de terceiros. Não há pixels de publicidade nem analytics opcionais instalados nesta versão. Se isso mudar, o site deverá pedir nova decisão informada antes de ativar tais ferramentas.</p>
+<p>Para mudar sua escolha, volte à página inicial e clique em <strong>Preferências de cookies</strong> no rodapé. Você pode também remover o cookie nas configurações do navegador.</p>
+<h2>6. Retenção e segurança</h2>
+<p>Dados são mantidos conforme finalidade, necessidade operacional, obrigações legais aplicáveis e solicitações legítimas de titulares. A retenção deve ser revisada periodicamente; a exclusão não é absoluta quando houver dever legal de conservação. Usamos mecanismos de controle de acesso, verificação de formulários e proteção de sessão, mas não existe ambiente digital com risco zero. Não publique senhas, documentos sigilosos ou dados sensíveis no campo de orçamento.</p>
+<h2>7. Direitos do titular</h2>
+<p>Nos limites da legislação aplicável, você pode solicitar confirmação de tratamento, acesso, correção, informações sobre compartilhamento, anonimização ou exclusão quando cabível, portabilidade quando aplicável e esclarecimentos sobre consentimentos. Entre em contato pelos canais informados. Poderemos precisar confirmar a identidade do solicitante sem coletar mais dados do que o necessário.</p>
+<h2>8. Dados de terceiros e menores</h2>
+<p>Para enviar fotos, vídeos e material de terceiros, tenha as autorizações necessárias. Não direcionamos o formulário a crianças. Não encaminhe dados de saúde, documentos de identidade, informações financeiras sigilosas ou dados de menores sem necessidade específica e orientação adequada.</p>
+<h2>9. Mudanças da política</h2>
+<p>Alterações significativas nas finalidades, integrações, cookies opcionais ou responsáveis serão informadas por meios apropriados. As alterações não autorizam retroativamente tratamentos que exigiam consentimento não concedido.</p>
+
+<p>Veja também os <a href="{{ url_for('terms_of_service') }}">Termos de serviço e compra</a>.</p>
+<a class="btn btn-solid" href="{{ url_for('index') }}">Voltar à G Tech ↗</a>
+</main><footer class="footer"><div class="wrap"><span>© {{ year }} G Tech • Innovation &amp; Solutions</span></div></footer></body></html>
