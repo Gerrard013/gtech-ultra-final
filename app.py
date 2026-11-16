@@ -390,8 +390,9 @@ def sync_lead_to_crm(lead: Lead, city: str) -> None:
         "Placa NFC Personalizada": "nfc",
         "Site Profissional": "site",
         "Perfil da Empresa no Google": "google",
-        "Cardápio Digital Premium": "site",
+        "Cardápio Digital Premium": "cardapio",
         "Fotos ou Restauração": "foto",
+        "Automação ou Sistema": "automacao",
     }
     product = mapping.get(lead.servico)
     if not product:
