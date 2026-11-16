@@ -1,5 +1,6 @@
 FROM python:3.11-slim
 
+# Railway runtime single-worker hotfix: retain existing data during schema initialization.
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
