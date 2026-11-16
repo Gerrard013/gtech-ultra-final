@@ -85,6 +85,8 @@ try:
             page.locator("#quote-form select[name=servico]").select_option(label="Placa NFC Personalizada")
             page.locator("#quote-form textarea[name=objetivo]").fill("Preciso de uma plaquinha NFC para a recepção do meu estúdio.")
             page.locator('#quote-form input[name="consentimento"]').check()
+            page.locator('#quote-form input[name="termos"]').check()
+            assert page.locator('#quote-form a[href="/termos"]').count()==1, "Terms link missing from quote form"
             preview_requests=[]
             page.on("request",lambda req:preview_requests.append(req.url) if req.method=="POST" and req.url.endswith("/lead") else None)
             page.locator("#quote-form .form-submit").click()
