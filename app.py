@@ -103,6 +103,17 @@ class Lead(db.Model):
         return f"https://wa.me/{digits}?text={quote(message)}" if digits else "#"
 
 
+class ConsentEvidence(db.Model):
+    """Minimal evidence of the notice shown and the declared purpose, without raw IPs."""
+    __tablename__ = "gtech_consent_evidence"
+    id = db.Column(db.Integer, primary_key=True)
+    lead_id = db.Column(db.Integer, db.ForeignKey("leads.id"), nullable=False, index=True)
+    purpose = db.Column(db.String(40), nullable=False)  # "budget" or "checkout"
+    privacy_version = db.Column(db.String(15), nullable=False, default="2026-11-16")
+    terms_version = db.Column(db.String(15), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class CheckoutOrder(db.Model):
     """One-off storefront checkout; no amount, token, or PII in public redirects."""
     __tablename__ = "gtech_checkout_orders"
@@ -379,13 +390,16 @@ STATUS_LABELS = {
 @app.after_request
 def set_security_headers(response: Response) -> Response:
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
-    response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
+    response.headers.setdefault("Cross-Origin-Resource-Policy", "same-origin")
+    response.headers.setdefault("X-Permitted-Cross-Domain-Policies", "none")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains" if request.is_secure else "")
     if not request.is_secure:
         response.headers.pop("Strict-Transport-Security", None)
     response.headers.setdefault("Content-Security-Policy", (
-        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; "
+        "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
         "form-action 'self'; script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
@@ -394,7 +408,7 @@ def set_security_headers(response: Response) -> Response:
     response.headers.setdefault(
         "Permissions-Policy", "camera=(), microphone=(), geolocation=()"
     )
-    if request.path.startswith(("/admin", "/pedido/", "/comprar/")) or request.path == "/obrigado":
+    if request.path == "/" or request.path.startswith(("/admin", "/pedido/", "/comprar/")) or request.path == "/obrigado":
         response.headers["Cache-Control"] = "no-store, private"
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
     if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
@@ -412,16 +426,50 @@ def check_auth(username: str, password: str) -> bool:
     )
 
 
+# Lightweight per-worker admin throttling. For distributed production, add a
+# shared WAF/Redis limiter and a separate VPN/zero-trust gate.
+_admin_failed: dict[str, deque[float]] = defaultdict(deque)
+_admin_failed_lock = threading.Lock()
+
+
+def _admin_locked(ip: str) -> bool:
+    now = time.monotonic()
+    with _admin_failed_lock:
+        if len(_admin_failed) > 1500:
+            for key in list(_admin_failed)[:500]:
+                if not _admin_failed[key] or now - _admin_failed[key][-1] > 900:
+                    _admin_failed.pop(key, None)
+        attempts = _admin_failed[ip]
+        while attempts and now - attempts[0] > 900:
+            attempts.popleft()
+        return len(attempts) >= 8
+
+
+def _admin_fail(ip: str) -> None:
+    with _admin_failed_lock:
+        _admin_failed[ip].append(time.monotonic())
+
+
+def _admin_succeeded(ip: str) -> None:
+    with _admin_failed_lock:
+        _admin_failed.pop(ip, None)
+
+
 def requires_auth(view_func):
     @wraps(view_func)
     def decorated(*args, **kwargs):
+        ip = request.remote_addr or "unknown"
+        if _admin_locked(ip):
+            return Response("Muitas tentativas de acesso. Tente mais tarde.", 429)
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
+            _admin_fail(ip)
             return Response(
                 "Acesso restrito.",
                 401,
                 {"WWW-Authenticate": 'Basic realm="G Tech Admin"'},
             )
+        _admin_succeeded(ip)
         return view_func(*args, **kwargs)
 
     return decorated
@@ -624,6 +672,8 @@ def create_lead():
         origem=origem,
     )
     db.session.add(lead)
+    db.session.flush()
+    db.session.add(ConsentEvidence(lead_id=lead.id, purpose="budget", privacy_version="2026-11-16"))
     db.session.commit()
     # Do not fail the customer journey when the CRM integration is unavailable.
     sync_lead_to_crm(lead, cidade)
@@ -675,6 +725,7 @@ def checkout_product(sku: str):
         db.session.flush()
         order.lead_id = lead.id
         db.session.add(order)
+        db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", privacy_version="2026-11-16", terms_version="2026-11-16"))
         db.session.commit()
         gateway_url = _create_mercadopago_preference(order, offer["title"])
         order.checkout_url = gateway_url
@@ -807,7 +858,16 @@ def update_lead_status(lead_id: int):
     lead.status = new_status
     db.session.commit()
     flash("Status atualizado.", "success")
-    return redirect(request.referrer or url_for("admin_leads"))
+    return redirect(url_for("admin_leads"))
+
+
+def csv_safe(value: object) -> str:
+    """Avoid spreadsheet formula injection when exporting untrusted lead fields."""
+    cell = str(value if value is not None else "")
+    first = cell.lstrip(" \t\r\n\ufeff")
+    if first.startswith(("=", "+", "-", "@")):
+        return "'" + cell
+    return cell
 
 
 @app.route("/admin/export.csv")
@@ -837,15 +897,15 @@ def export_csv():
             [
                 lead.id,
                 lead.created_at.strftime("%d/%m/%Y %H:%M"),
-                lead.nome,
-                lead.whatsapp,
-                lead.negocio,
-                lead.servico,
-                lead.prazo,
-                lead.objetivo,
-                lead.mensagem or "",
-                lead.origem or "",
-                STATUS_LABELS.get(lead.status, lead.status),
+                csv_safe(lead.nome),
+                csv_safe(lead.whatsapp),
+                csv_safe(lead.negocio),
+                csv_safe(lead.servico),
+                csv_safe(lead.prazo),
+                csv_safe(lead.objetivo),
+                csv_safe(lead.mensagem),
+                csv_safe(lead.origem),
+                csv_safe(STATUS_LABELS.get(lead.status, lead.status)),
             ]
         )
 
