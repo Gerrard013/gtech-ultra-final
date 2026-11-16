@@ -105,7 +105,7 @@
         <article class="service-card reveal">
           <div class="service-top"><span class="service-n">{{ '%02d'|format(loop.index) }}</span><span class="service-symbol" aria-hidden="true">{{ service.symbol }}</span></div>
           <div class="service-info"><span class="service-category">{{ service.category }}</span><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
-          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions"><a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% if checkout_enabled and service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Comprar {{ service.title }} com Mercado Pago">Pagar online <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
+          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions"><a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% if checkout_enabled and service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Comprar {{ service.title }} com Mercado Pago">{% if drive_preview_enabled %}Visualizar compra{% else %}Pagar online{% endif %} <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
         </article>
         {% endfor %}
       </div>
