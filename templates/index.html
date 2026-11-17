@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#060b16">
-  <meta name="description" content="G Tech em Belém, Pará: plaquinhas NFC personalizadas, sites profissionais, cardápios digitais e organização do Perfil da Empresa no Google. Orçamento pelo WhatsApp.">
+  <meta name="description" content="Conheça os serviços da G Tech em Belém: restauração de fotos, Perfil da Empresa no Google, sites e NFC. Confira preços, compre serviços online ou peça um projeto sob medida.">
   <meta name="robots" content="{% if drive_preview_enabled %}noindex,nofollow{% else %}index,follow,max-image-preview:large{% endif %}">
   <link rel="canonical" href="{{ public_site_url }}/">
   <meta property="og:type" content="website">
@@ -21,7 +21,8 @@
   <link rel="preload" as="image" href="{{ url_for('static',filename='assets/gtech-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='official.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='official.css', v='20261117') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='commerce.css', v='20261117') }}">
   <script defer src="{{ url_for('static', filename='official.js', v='20261116-form400') }}"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"{{ public_site_url }}/","logo":"{{ public_site_url }}/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
@@ -49,12 +50,12 @@
         <span class="brand-type">G Tech <small>INNOVATION &amp; SOLUTIONS</small></span>
       </a>
       <nav class="main-nav" id="menu-links" aria-label="Menu principal">
+        <a href="#comprar">Comprar</a>
         <a href="#solucoes">Soluções</a>
         <a href="#projetos">Projetos</a>
-        <a href="#como-funciona">Como funciona</a>
         <a href="#contato">Contato</a>
       </nav>
-      <a href="#contato" class="header-cta">Pedir orçamento <span aria-hidden="true">↗</span></a>
+      <a href="#comprar" class="header-cta">Escolher serviço <span aria-hidden="true">↗</span></a>
       <button class="menu-button" id="menu-button" aria-label="Abrir menu" aria-controls="menu-links" aria-expanded="false" type="button"><span></span><span></span><span></span></button>
     </div>
   </header>
@@ -65,12 +66,12 @@
         <div class="hero-text">
           <div class="micro-label"><span class="pulse"></span> G TECH • BELÉM / PARÁ • BRASIL</div>
           <h1 id="hero-title">Sites, NFC e Google para <span class="glow-text">destacar sua empresa.</span></h1>
-          <p class="hero-lead">A G Tech cria sites profissionais, plaquinhas NFC personalizadas, cardápios digitais e soluções de presença online. Conheça projetos reais e fale diretamente com quem desenvolve.</p>
+          <p class="hero-lead">Sua presença digital começa com uma escolha. Conheça nossos serviços, confira o que está incluído e compre online ou converse sobre um projeto sob medida.</p>
           <div class="hero-buttons">
-            <a class="btn btn-solid" href="#solucoes">Ver serviços e preços <span aria-hidden="true">↗</span></a>
-            <a class="btn btn-outline" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar no WhatsApp</a>
+            <a class="btn btn-solid" href="#comprar">Escolher meu serviço <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-outline" href="#projetos">Ver trabalhos reais</a>
           </div>
-          <div class="hero-trust"><span>✓ Apresentação real em Belém</span><span>✓ Atendimento direto</span><span>✓ Experiência mobile</span></div>
+          <div class="hero-trust"><span>✓ Atendimento direto</span><span>✓ Valores antes de contratar</span>{% if checkout_enabled %}<span>✓ Checkout Mercado Pago</span>{% else %}<span>✓ Projetos reais em Belém</span>{% endif %}</div>
         </div>
         <div class="hero-visual" aria-label="Demonstrações dos produtos G Tech">
           <div class="orbital orbital-one" aria-hidden="true"></div><div class="orbital orbital-two" aria-hidden="true"></div>
@@ -95,17 +96,56 @@
       <div class="wrap partners-inner"><span>TECNOLOGIA PARA NEGÓCIOS REAIS</span><strong>COMÉRCIO</strong><strong>RESTAURANTES</strong><strong>PROFISSIONAIS</strong><strong>EMPRESAS</strong></div>
     </section>
 
+    <section id="comprar" class="section wrap shop-section" aria-labelledby="shop-title">
+      <div class="section-head reveal">
+        <div><span class="eyebrow">ESCOLHA. CONFIRA. COMECE.</span><h2 id="shop-title">Seu próximo passo,<br><em>sem complicação.</em></h2></div>
+        <p>Serviços com valor definido para começar agora. Para sites, NFC e projetos personalizados, <a class="shop-inline-link" href="#solucoes">conheça todas as soluções</a>.</p>
+      </div>
+      <ol class="purchase-path" aria-label="Etapas da compra">
+        <li><span>01</span><div><strong>Escolha o serviço</strong><small>Veja o escopo e o valor.</small></div></li>
+        <li><span>02</span><div><strong>Confira seu pedido</strong><small>Informe seu contato para atendimento.</small></div></li>
+        <li><span>03</span><div><strong>Confirme o pagamento</strong><small>Escolha a forma no Mercado Pago.</small></div></li>
+      </ol>
+      <div class="shop-layout">
+        <div class="offer-grid">
+          {% for sku in ['foto', 'google'] %}{% set offer = checkout_offers[sku] %}
+          <article class="offer-card reveal" id="oferta-{{ sku }}">
+            <div class="offer-heading"><span class="offer-symbol" aria-hidden="true">{{ '▧' if sku == 'foto' else '⌖' }}</span><span class="offer-tag">{{ 'IMAGEM & MEMÓRIA' if sku == 'foto' else 'PRESENÇA LOCAL' }}</span></div>
+            <h3>{{ offer.title }}</h3>
+            <p class="offer-description">{{ offer.description }}</p>
+            <div class="offer-price"><strong>R$ {{ '%.2f'|format(offer.cents / 100)|replace('.', ',') }}</strong><span>pagamento único</span></div>
+            <ul class="offer-includes">
+              <li>{{ 'Restauração básica de uma fotografia' if sku == 'foto' else 'Revisão e organização das informações' }}</li>
+              <li>{{ 'Entrega digital e atendimento pelo WhatsApp' if sku == 'foto' else 'Perfil sujeito às regras e à elegibilidade do Google' }}</li>
+              <li>Sem mensalidade neste serviço</li>
+            </ul>
+            <a class="btn btn-solid offer-cta" href="{{ url_for('checkout_product',sku=sku) }}">{% if checkout_enabled and not drive_preview_enabled %}Continuar para pagamento{% elif drive_preview_enabled %}Visualizar compra{% else %}Ver detalhes do serviço{% endif %} <span aria-hidden="true">↗</span></a>
+            <small class="offer-footnote">{{ 'Fotos com danos complexos precisam de orçamento.' if sku == 'foto' else 'Serviço independente, sem garantia de posição nas buscas.' }}</small>
+          </article>
+          {% endfor %}
+        </div>
+        <aside class="payment-guide reveal" aria-labelledby="payment-guide-title">
+          <span class="payment-provider">MERCADO PAGO</span>
+          <h3 id="payment-guide-title">Você confere.<br>Você confirma.</h3>
+          <p>O valor aparece antes de continuar. Os dados do cartão são preenchidos no ambiente do Mercado Pago.</p>
+          <ul><li>Escolha a forma de pagamento no checkout.</li><li>Veja as condições antes de confirmar.</li><li>Acompanhe o pedido após o pagamento.</li></ul>
+          {% if drive_preview_enabled %}<p class="shop-availability" role="status">Prévia da compra. Nenhum pagamento é processado neste ambiente.</p>{% elif not checkout_enabled %}<p class="shop-availability" role="status">Pagamento online temporariamente indisponível. Consulte os detalhes e fale com a G Tech para contratar.</p>{% else %}<p class="shop-availability is-ready">Pagamento online disponível</p>{% endif %}
+          <div class="payment-help"><strong>Prefere conversar primeiro?</strong><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Falar com a G Tech <span aria-hidden="true">↗</span></a></div>
+        </aside>
+      </div>
+    </section>
+
     <section id="solucoes" class="section wrap" aria-labelledby="services-title">
       <div class="section-head reveal">
         <div><span class="eyebrow">01 / SOLUÇÕES</span><h2 id="services-title">Menos complicação.<br><em>Mais possibilidades.</em></h2></div>
-        <p>Conheça as soluções disponíveis e peça uma proposta adequada à sua necessidade. Sem promessas de resultados automáticos.</p>
+        <p>Da primeira presença online a um projeto personalizado. Escolha a solução e fale com a G Tech para definir escopo, prazo e condições.</p>
       </div>
       <div class="services-grid">
         {% for service in services %}
         <article class="service-card reveal">
           <div class="service-top"><span class="service-n">{{ '%02d'|format(loop.index) }}</span><span class="service-symbol" aria-hidden="true">{{ service.symbol }}</span></div>
           <div class="service-info"><span class="service-category">{{ service.category }}</span><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
-          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions"><a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% if checkout_enabled and service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Comprar {{ service.title }} com Mercado Pago">{% if drive_preview_enabled %}Visualizar compra{% else %}Pagar online{% endif %} <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
+          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions">{% if service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Ver pedido de {{ service.title }}">{% if checkout_enabled and not drive_preview_enabled %}Pagar online{% else %}Ver detalhes{% endif %} <span aria-hidden="true">↗</span></a>{% else %}<a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
         </article>
         {% endfor %}
       </div>
@@ -239,10 +279,10 @@
         </div>
       </div>
     </section>
-    <section class="faq-section section wrap" aria-labelledby="faq-title"><div class="section-head reveal"><div><span class="eyebrow">07 / PERGUNTAS FREQUENTES</span><h2 id="faq-title">Respostas sem complicação.</h2></div></div><div class="faq-grid reveal"><details><summary>A G Tech atende fora de Belém?</summary><p>Projetos digitais podem ser atendidos online. Entrega de itens físicos e eventuais custos são confirmados no orçamento.</p></details><details><summary>O site já cobra automaticamente?</summary><p>Não. O formulário solicita orçamento. Eventuais pagamentos são combinados somente após proposta e confirmação do meio de cobrança.</p></details><details><summary>O valor de R$ 500 inclui manutenção?</summary><p>Não. A criação de site começa em R$ 500 e a manutenção de R$ 149,99 por mês é contratada separadamente, conforme proposta.</p></details><details><summary>Vocês são parceiros do Google?</summary><p>A G Tech é uma empresa independente. A organização do Perfil da Empresa no Google não garante posição em pesquisas.</p></details></div></section>
-    <section class="final-band"><div class="wrap final-content"><div><span>G TECH / INNOVATION &amp; SOLUTIONS</span><h2>Tecnologia de verdade.<br>Ideias que viram negócio.</h2></div><a class="btn btn-solid" href="#contato">Vamos começar ↗</a></div></section>
+    <section class="faq-section section wrap" aria-labelledby="faq-title"><div class="section-head reveal"><div><span class="eyebrow">07 / PERGUNTAS FREQUENTES</span><h2 id="faq-title">Respostas sem complicação.</h2></div></div><div class="faq-grid reveal"><details><summary>A G Tech atende fora de Belém?</summary><p>Projetos digitais podem ser atendidos online. Entrega de itens físicos e eventuais custos são confirmados no orçamento.</p></details><details><summary>Como faço para pagar pelo site?</summary><p>{% if checkout_enabled and not drive_preview_enabled %}Escolha um serviço com compra online, confira o pedido e siga para o Mercado Pago. Lá você escolhe a forma de pagamento e confirma a cobrança. Sites, NFC e projetos sob medida dependem de proposta.{% else %}Confira os serviços e seus valores na seção de compra. O pagamento online está temporariamente indisponível; fale com a G Tech pelo WhatsApp para combinar a contratação.{% endif %} O formulário de orçamento não realiza cobrança.</p></details><details><summary>O que acontece depois do pagamento?</summary><p>A página do pedido informa o andamento após a verificação do pagamento. A G Tech usa o WhatsApp informado para combinar os materiais e os próximos passos. Um pagamento pendente ainda precisa de confirmação.</p></details><details><summary>O valor de R$ 500 inclui manutenção?</summary><p>Não. A criação de site começa em R$ 500 e a manutenção de R$ 149,99 por mês é contratada separadamente, conforme proposta.</p></details><details><summary>Vocês são parceiros do Google?</summary><p>A G Tech é uma empresa independente. A organização do Perfil da Empresa no Google não garante posição em pesquisas.</p></details></div></section>
+    <section class="final-band"><div class="wrap final-content"><div><span>G TECH / INNOVATION &amp; SOLUTIONS</span><h2>Tecnologia de verdade.<br>Ideias que viram negócio.</h2></div><a class="btn btn-solid" href="#comprar">Escolher meu serviço ↗</a></div></section>
   </main>
-  <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><a href="{{ url_for('terms_of_service') }}">Termos de serviço</a><button type="button" class="footer-cookie-button" id="cookie-settings">Preferências de cookies</button><span>© {{ year }} G Tech</span>{% if drive_preview_enabled %}<small class="footer-staging-note">Ambiente de homologação — sem coleta de contatos ou pagamentos</small>{% endif %}</div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
+  <footer class="footer"><div class="wrap footer-grid"><div class="footer-brand"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="" width="52" height="52"><strong>G TECH</strong><p>Innovation &amp; Solutions<br>Belém, Pará • Brasil</p></div><div><strong>Explore</strong><a href="#comprar">Comprar serviços</a><a href="#solucoes">Soluções</a><a href="#projetos">Portfólio</a><a href="#contato">Orçamentos</a></div><div><strong>Conecte-se</strong><a href="{{ contacts.instagram }}" target="_blank" rel="noopener noreferrer">Instagram</a><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><span>{{ contacts.display_phone }}</span></div><div><strong>Transparência</strong><a href="{{ url_for('privacy_policy') }}">Privacidade</a><a href="{{ url_for('terms_of_service') }}">Termos de serviço</a><button type="button" class="footer-cookie-button" id="cookie-settings">Preferências de cookies</button><span>© {{ year }} G Tech</span>{% if drive_preview_enabled %}<small class="footer-staging-note">Ambiente de homologação — sem coleta de contatos ou pagamentos</small>{% endif %}</div></div><div class="wrap footer-end"><span>G TECH • SOLUÇÕES DIGITAIS</span><span>FEITO PARA CONECTAR PESSOAS E NEGÓCIOS</span></div></footer>
   <aside class="cookie-notice" id="cookie-notice" role="dialog" aria-modal="false" aria-labelledby="cookie-title" hidden>
     <div class="cookie-copy"><strong id="cookie-title">Sua privacidade importa</strong>
       <p>Utilizamos cookie essencial de sessão para proteger o formulário. Sua preferência fica registrada em cookie próprio por até 180 dias e pode ser alterada a qualquer momento. Não usamos cookies de publicidade ou analytics nesta versão. <a href="{{ url_for('privacy_policy') }}">Ver política</a>.</p>
@@ -252,5 +292,5 @@
       <button type="button" class="cookie-accept" data-cookie-choice="preferences">Lembrar minhas preferências</button>
     </div>
   </aside>
-  <div class="mobile-actions" aria-label="Acesso rápido no celular"><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="#contato">Orçamento ↗</a></div>
+  <div class="mobile-actions" aria-label="Acesso rápido no celular"><a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a><a href="#comprar">Escolher serviço ↗</a></div>
 </body></html>

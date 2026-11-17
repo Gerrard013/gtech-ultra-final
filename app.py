@@ -347,9 +347,12 @@ def _verified_mercadopago_webhook(payment_id: str) -> bool:
             k, v = entry.split("=", 1)
             fields[k.strip()] = v.strip()
     ts, v1 = fields.get("ts", ""), fields.get("v1", "")
-    if not ts.isdigit() or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
+    if not re.fullmatch(r"(?:[0-9]{10}|[0-9]{13})", ts) or not re.fullmatch(r"[0-9a-fA-F]{64}", v1):
         return False
-    if abs(time.time() - int(ts) / 1000) > 300:
+    # Legacy payment notifications can use seconds; newer notifications use ms.
+    # Sign the original header value, but normalize only for the replay window.
+    timestamp_seconds = int(ts) / 1000 if len(ts) == 13 else int(ts)
+    if abs(time.time() - timestamp_seconds) > 300:
         return False
     manifest = f"id:{payment_id.lower()};request-id:{request_id};ts:{ts};"
     expected = hmac.new(secret.encode("utf-8"), manifest.encode("utf-8"), hashlib.sha256).hexdigest()
@@ -471,9 +474,14 @@ def set_security_headers(response: Response) -> Response:
     response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains" if request.is_secure else "")
     if not request.is_secure:
         response.headers.pop("Strict-Transport-Security", None)
+    # Chromium applies form-action to the 303 destination after a checkout POST.
+    # Only this route needs to navigate to the hosted Mercado Pago checkout.
+    form_destinations = "'self'"
+    if request.path.startswith("/comprar/"):
+        form_destinations += " https://www.mercadopago.com.br https://www.mercadopago.com"
     response.headers.setdefault("Content-Security-Policy", (
         "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; "
-        "form-action 'self'; script-src 'self'; "
+        f"form-action {form_destinations}; script-src 'self'; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
         "font-src 'self' https://fonts.gstatic.com; "
         "img-src 'self' data:; media-src 'self'; connect-src 'self'; frame-src 'none'"
@@ -483,6 +491,7 @@ def set_security_headers(response: Response) -> Response:
     )
     if request.path == "/" or request.path.startswith(("/admin", "/pedido/", "/comprar/")) or request.path == "/obrigado":
         response.headers["Cache-Control"] = "no-store, private"
+    if request.path.startswith(("/admin", "/pedido/", "/comprar/")) or request.path == "/obrigado":
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
     if os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview":
         response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
@@ -613,6 +622,7 @@ def index():
         public_site_url=PUBLIC_SITE_URL,
         contacts=CONTACTS,
         services=SERVICES,
+        checkout_offers=CHECKOUT_OFFERS,
         checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
@@ -891,14 +901,16 @@ def checkout_product(sku: str):
     if sku not in CHECKOUT_OFFERS:
         abort(404)
     preview_only = os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview"
-    if not _checkout_enabled() and not (preview_only and request.method == "GET"):
+    checkout_enabled = _checkout_enabled()
+    if request.method == "POST" and not checkout_enabled:
         abort(503)
     offer = CHECKOUT_OFFERS[sku]
     if "checkout_csrf" not in session:
         session["checkout_csrf"] = secrets.token_urlsafe(32)
     if request.method == "GET":
         return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
-                               csrf_token=session["checkout_csrf"], preview_only=preview_only)
+                               csrf_token=session["checkout_csrf"], preview_only=preview_only,
+                               checkout_enabled=checkout_enabled)
 
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
@@ -1179,3 +1191,4 @@ if __name__ == "__main__":
         port=int(os.getenv("PORT", "5000")),
         debug=os.getenv("FLASK_DEBUG", "0") == "1",
     )
+

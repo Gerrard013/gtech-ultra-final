@@ -1,45 +1,45 @@
 <!doctype html>
 <html lang="pt-BR"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#070e1c">
-<title>Finalizar pedido | G Tech</title>
-<link rel="stylesheet" href="{{ url_for('static',filename='official.css') }}">
-<style>
-body{background:#06111f}.checkout-top{padding:18px;max-width:940px;margin:auto;display:flex;align-items:center;justify-content:space-between;gap:15px}
-.checkout-top a{color:#a1eaf4;font-size:14px;font-weight:800}.checkout-top img{height:52px;width:52px;object-fit:cover;background:white;border-radius:11px}
-.checkout-main{width:min(940px,calc(100% - 30px));margin:22px auto 70px;display:grid;grid-template-columns:.8fr 1.2fr;gap:25px}
-.checkout-summary,.checkout-form{background:#13253b;border:1px solid rgba(138,207,246,.21);border-radius:20px;padding:29px}
-.checkout-summary h1{font-size:clamp(28px,4vw,46px);line-height:1.13;margin:18px 0}.checkout-summary .amount{color:#5ce6fc;font-size:34px;font-weight:900}
-.checkout-summary p{color:#b4cadb;font-size:14px}.checkout-summary ul{padding-left:18px;color:#bbd1e3;font-size:13px}
-.checkout-form h2{font:750 29px "Oxanium",sans-serif;margin:0 0 12px}
-.checkout-form p{color:#b3c8d9;font-size:13px}
-.checkout-form form{display:grid;gap:18px}.checkout-form label{display:grid;gap:7px;font-weight:750;font-size:13px}
-.checkout-form input{background:#061522;color:white;border:1px solid #41617d;border-radius:12px;padding:14px;width:100%;font:inherit}
-.checkout-form input:focus-visible{outline:3px solid #64d8f9;outline-offset:2px}
-.checkout-form .consent{display:flex;align-items:start;gap:12px;font-weight:500;font-size:12px;line-height:1.5}
-.checkout-form .consent input{width:18px;height:18px;flex:none}
-.checkout-form button{background:linear-gradient(110deg,#64e9ff,#4789c5);color:#061522;border:0;border-radius:13px;padding:17px;font-weight:900}
-.checkout-form .alert{border:1px solid #ee8297;padding:11px;color:#ffe0e0;border-radius:9px}
-.checkout-form a{color:#78ddf3;text-decoration:underline}
-@media(max-width:690px){.checkout-main{grid-template-columns:1fr;margin-top:8px}.checkout-summary,.checkout-form{padding:23px}.checkout-summary h1{font-size:33px}}
-</style></head><body>
-<header class="checkout-top"><a href="{{ url_for('index') }}" aria-label="Voltar ao site G Tech"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="Logo G Tech"></a><a href="{{ url_for('index') }}">← Voltar aos serviços</a></header>
+<meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#07111f">
+<title>Confira seu pedido | G Tech</title>
+<link rel="icon" href="{{ url_for('static',filename='assets/favicon.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static',filename='official.css',v='20261117') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='commerce.css',v='20261117') }}">
+</head><body class="checkout-page">
+<header class="checkout-top"><a class="checkout-brand" href="{{ url_for('index') }}#comprar" aria-label="Voltar ao site G Tech"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="">G TECH</a><a class="checkout-back" href="{{ url_for('index') }}#comprar">← Voltar aos serviços</a></header>
+<div class="checkout-wrap">
+<ol class="purchase-path checkout-path" aria-label="Etapas da compra"><li><span>✓</span><div><strong>Serviço escolhido</strong><small>{{ offer.title }}</small></div></li><li aria-current="step"><span>02</span><div><strong>Confira seu pedido</strong><small>Seu contato para atendimento.</small></div></li><li><span>03</span><div><strong>Pagamento</strong><small>No Mercado Pago.</small></div></li></ol>
 <main class="checkout-main">
-<section class="checkout-summary"><span class="eyebrow">G TECH / PEDIDO SEGURO</span><h1>{{ offer.title }}</h1><p>{{ offer.description }}</p><span class="amount">R$ {{ "%.2f"|format(offer.cents / 100)|replace(".", ",") }}</span><p>Pagamento único. O checkout hospedado do Mercado Pago apresentará os meios de pagamento disponíveis antes de você confirmar.</p><ul><li>Confirme todos os dados antes de pagar.</li><li>Não envie dinheiro por WhatsApp ou transferência externa.</li><li>O serviço depende de escopo e elegibilidade quando aplicável.</li></ul></section>
-<section class="checkout-form">
-<h2>Quase lá.</h2><p>Precisamos apenas de um contato para acompanhar seu pedido. Você será direcionado ao Mercado Pago para escolher a forma de pagamento.</p>
-{% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div role="alert">{% for category,message in messages %}<p class="alert">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
-<form action="{{ url_for('checkout_product',sku=sku) }}" method="post">
-<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-<div style="position:absolute;left:-9999px" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
-<label>Seu nome completo <input name="nome" required maxlength="100" autocomplete="name" placeholder="Nome e sobrenome"></label>
-<label>WhatsApp com DDD <input name="whatsapp" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX"></label>
-<label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o tratamento dos meus dados para registrar este pedido, responder a dúvidas e acompanhar o serviço. Não é autorização para campanhas. <a href="{{ url_for('privacy_policy') }}">Privacidade</a>.</span></label>
-<label class="consent"><input type="checkbox" name="termos" value="yes" required><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>. Meus direitos legais de consumidor continuam protegidos.</span></label>
-{% if preview_only %}<p role="status" class="alert">HOMOLOGAÇÃO: esta tela não coleta pedidos nem processa pagamentos.</p><button type="button" disabled aria-disabled="true" style="opacity:.5;cursor:not-allowed">Pagamento indisponível na homologação</button>{% else %}
-<button type="submit">Ir ao Mercado Pago ↗</button>{% endif %}
-</form>
-<p>Não há cobrança nesta tela. Pagamentos só são efetuados após sua confirmação no Mercado Pago.</p>
-<a href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Precisa de ajuda? Converse com a G Tech.</a>
+<section class="checkout-summary" aria-labelledby="order-title">
+<span class="eyebrow">SEU PEDIDO / G TECH</span><h1 id="order-title">{{ offer.title }}</h1><p>{{ offer.description }}</p>
+<div class="checkout-total"><span>Total · 1 serviço</span><strong>R$ {{ '%.2f'|format(offer.cents / 100)|replace('.', ',') }}</strong></div>
+<p class="checkout-single">Pagamento único. Sem assinatura ou renovação automática.</p>
+<ul><li>{{ 'Restauração básica de uma fotografia; danos complexos precisam de orçamento.' if sku == 'foto' else 'Revisão e organização do perfil, sujeito à elegibilidade do negócio.' }}</li><li>Atendimento e próximos passos pelo WhatsApp informado.</li><li>Condições da forma de pagamento exibidas antes de confirmar.</li></ul>
+<div class="checkout-provider"><span class="payment-provider">MERCADO PAGO</span><p>Você escolhe a forma de pagamento no checkout. Os dados do cartão são preenchidos no ambiente do Mercado Pago.</p></div>
 </section>
-</main></body></html>
+<section class="checkout-form" aria-labelledby="checkout-title">
+<h2 id="checkout-title">Vamos começar?</h2>
+{% if checkout_enabled or preview_only %}
+<p>Informe um contato para acompanhar o serviço. Depois, confira as opções e confirme o pagamento no Mercado Pago.</p>
+{% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div role="alert">{% for category,message in messages %}<p class="checkout-alert">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
+<form action="{{ url_for('checkout_product',sku=sku) }}" method="post" id="checkout-form">
+<input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
+<label>Seu nome completo<input name="nome" required minlength="2" maxlength="100" autocomplete="name" placeholder="Nome e sobrenome"></label>
+<label>WhatsApp com DDD<input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX"></label>
+<label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o uso dos meus dados para este pedido e atendimento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não é autorização para campanhas.</span></label>
+<label class="consent"><input type="checkbox" name="termos" value="yes" required><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>, sem prejuízo dos meus direitos legais.</span></label>
+{% if preview_only %}<p role="status" class="checkout-alert">HOMOLOGAÇÃO: esta tela não coleta pedidos nem processa pagamentos.</p><button class="btn btn-solid checkout-submit" type="button" disabled aria-disabled="true">Pagamento indisponível na homologação</button>{% else %}<button class="btn btn-solid checkout-submit" type="submit">Ir ao Mercado Pago <span aria-hidden="true">↗</span></button>{% endif %}
+</form>
+<p class="checkout-note">Esta tela não cobra seu cartão. Você confirma o pagamento na próxima etapa.</p>
+{% else %}
+<div class="checkout-unavailable"><p class="checkout-alert" role="status">O pagamento online está temporariamente indisponível. Nenhum pedido foi cobrado.</p><p>Fale com a G Tech para confirmar os detalhes e combinar a contratação deste serviço.</p><a class="btn btn-solid" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar sobre este serviço ↗</a></div>
+{% endif %}
+<a class="checkout-support" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Precisa de ajuda? Fale com a G Tech.</a>
+</section>
+</main>
+<footer class="checkout-footer">G Tech · Belém/PA · {{ contacts.display_phone }}<br><a href="{{ url_for('terms_of_service') }}">Termos de serviço</a> · <a href="{{ url_for('privacy_policy') }}">Privacidade</a></footer>
+</div></body></html>

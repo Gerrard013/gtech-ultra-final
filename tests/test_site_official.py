@@ -304,9 +304,15 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(delivery.attempts,1)
 
     def test_checkout_disabled_until_real_gateway_configured(self):
-        self.assertEqual(self.client.get("/comprar/foto").status_code, 503)
-        self.assertEqual(self.client.get("/comprar/google").status_code, 503)
+        for sku in ("foto", "google"):
+            page = self.client.get("/comprar/" + sku)
+            self.assertEqual(page.status_code, 200)
+            self.assertIn("temporariamente indisponível", page.get_data(as_text=True))
+            self.assertNotIn('<form ', page.get_data(as_text=True))
+            self.assertEqual(self.client.post("/comprar/" + sku, data={"nome": "Teste"}).status_code, 503)
         self.assertEqual(self.client.get("/comprar/nfc").status_code, 404)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
 
     def test_single_catalog_prices_match_display_and_checkout(self):
         from app import CHECKOUT_OFFERS, CATALOGO_GTECH
@@ -393,7 +399,10 @@ class OfficialSiteTests(unittest.TestCase):
             "RAILWAY_ENVIRONMENT": "production",
         }
         with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
-            self.assertEqual(self.client.get("/comprar/foto").status_code, 503)
+            page = self.client.get("/comprar/foto")
+            self.assertEqual(page.status_code, 200)
+            self.assertNotIn('<form ', page.get_data(as_text=True))
+            self.assertEqual(self.client.post("/comprar/foto", data={"nome": "Teste"}).status_code, 503)
 
     def test_checkout_refuses_wrong_merchant_even_when_credentials_are_present(self):
         from app import _create_mercadopago_preference, CheckoutOrder
@@ -646,7 +655,38 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(home.headers.get("Cross-Origin-Opener-Policy"),"same-origin")
         self.assertEqual(home.headers.get("Cross-Origin-Resource-Policy"),"same-origin")
         self.assertIn("no-store",home.headers.get("Cache-Control",""))
+        self.assertNotIn("noindex", home.headers.get("X-Robots-Tag", ""))
+        self.assertNotIn("https://www.mercadopago.com.br", home.headers["Content-Security-Policy"])
+        checkout = self.client.get("/comprar/foto")
+        self.assertIn("noindex", checkout.headers["X-Robots-Tag"])
+        self.assertIn("form-action 'self' https://www.mercadopago.com.br https://www.mercadopago.com;", checkout.headers["Content-Security-Policy"])
         self.assertEqual(self.client.get("/termos").status_code,200)
+
+    def test_payment_signature_accepts_both_timestamp_units_and_rejects_replay(self):
+        import hashlib, hmac, time
+        from app import _verified_mercadopago_webhook
+        secret = "isolated-signature-test-no-production-key"
+        now = int(time.time())
+        for scale in (1, 1000):
+            for offset, expected in ((0, True), (-301, False), (301, False)):
+                ts = str((now + offset) * scale)
+                manifest = f"id:12345;request-id:isolated-request;ts:{ts};"
+                digest = hmac.new(secret.encode(), manifest.encode(), hashlib.sha256).hexdigest()
+                headers = {"X-Request-Id": "isolated-request", "X-Signature": f"ts={ts},v1={digest}"}
+                with patch.dict(os.environ, {"MERCADOPAGO_WEBHOOK_SECRET": secret}), app.test_request_context("/webhooks/mercadopago?data.id=12345", headers=headers):
+                    self.assertEqual(_verified_mercadopago_webhook("12345"), expected)
+                    self.assertFalse(_verified_mercadopago_webhook("99999"))
+
+    def test_landing_page_tracks_checkout_availability_without_stale_faq(self):
+        for enabled in (False, True):
+            with patch("app._checkout_enabled", return_value=enabled):
+                html = self.client.get("/").get_data(as_text=True)
+            self.assertIn('id="comprar"', html)
+            self.assertIn('/comprar/foto', html)
+            self.assertIn('/comprar/google', html)
+            self.assertNotIn("O site já cobra automaticamente?", html)
+            self.assertEqual("Pagamento online disponível" in html, enabled)
+            self.assertEqual("Continuar para pagamento" in html, enabled)
 
     def test_admin_bruteforce_is_throttled_without_exposing_leads(self):
         for _ in range(8):
@@ -712,3 +752,4 @@ class OfficialSiteTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
