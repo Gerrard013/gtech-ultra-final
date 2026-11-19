@@ -425,6 +425,42 @@ SERVICES = [
         "category": "TECNOLOGIA PARA EMPRESAS", "price": "Sob análise",
         "description": "Organização de processos e projetos digitais sob medida, sujeitos a análise de escopo e enquadramento do serviço."
     },
+    {
+        "id": "email", "title": "E-mail Profissional e Domínios",
+        "form_value": "E-mail Profissional e Domínios", "symbol": "✉",
+        "category": "E-MAIL CORPORATIVO", "price": "Sob orçamento",
+        "description": "Implantação de e-mail com domínio próprio, configurações de DNS e suporte a plataformas como Zoho Mail, conforme o plano contratado."
+    },
+    {
+        "id": "suporte", "title": "Suporte Técnico e Manutenção",
+        "form_value": "Suporte Técnico e Manutenção", "symbol": "⚙",
+        "category": "SUPORTE DE TI", "price": "Sob orçamento",
+        "description": "Diagnóstico e configuração de computadores, impressoras e suporte remoto. Visitas presenciais sujeitas a avaliação e disponibilidade."
+    },
+    {
+        "id": "redes", "title": "Redes Wi-Fi e Infraestrutura",
+        "form_value": "Redes Wi-Fi e Infraestrutura", "symbol": "⌁",
+        "category": "CONECTIVIDADE", "price": "Sob orçamento",
+        "description": "Avaliação e configuração de roteadores, redes Wi-Fi e compartilhamento de arquivos para pequenos negócios."
+    },
+    {
+        "id": "seguranca", "title": "Backup e Proteção Digital",
+        "form_value": "Backup e Proteção Digital", "symbol": "⬡",
+        "category": "SEGURANÇA BÁSICA", "price": "Sob orçamento",
+        "description": "Organização de backups, autenticação em duas etapas e acessos. Não inclui perícia ou segurança ofensiva especializada."
+    },
+    {
+        "id": "impressao3d", "title": "Impressão 3D Personalizada",
+        "form_value": "Impressão 3D Personalizada", "symbol": "▣",
+        "category": "PRODUÇÃO SOB DEMANDA", "price": "Em preparação",
+        "description": "Brindes, acessórios e produtos personalizados em estudo. Consulte disponibilidade, viabilidade e prazo antes de contratar."
+    },
+    {
+        "id": "videoia", "title": "Vídeos e Conteúdo com IA",
+        "form_value": "Vídeos e Conteúdo com IA", "symbol": "▷",
+        "category": "CONTEÚDO DIGITAL", "price": "Sob orçamento",
+        "description": "Roteiros, vídeos curtos, legendas e materiais para redes sociais, com revisão humana e utilização autorizada de imagens e áudios."
+    },
 ]
 
 # Keep public price labels synchronized with the same catalogue used by payment logic.
@@ -651,6 +687,12 @@ CRM_PRODUCT_MAP = {
     "Fotos ou Restauração": "foto",
     "Automação ou Sistema": "automacao",
     "Outro serviço": "outro",
+    "E-mail Profissional e Domínios": "outro",
+    "Suporte Técnico e Manutenção": "outro",
+    "Redes Wi-Fi e Infraestrutura": "outro",
+    "Backup e Proteção Digital": "outro",
+    "Impressão 3D Personalizada": "outro",
+    "Vídeos e Conteúdo com IA": "outro",
 }
 
 
@@ -686,6 +728,8 @@ def sync_lead_to_crm(lead: Lead, city: str) -> bool:
     details = (
         lead.objetivo + ("\n" + lead.mensagem if lead.mensagem else "")
     )[:900]
+    if product == "outro":
+        details = ("Serviço solicitado: " + lead.servico + "\n" + details)[:900]
     payload = {
         "siteLeadId": lead.id,
         "name": lead.nome,

@@ -57,11 +57,14 @@ class OfficialSiteTests(unittest.TestCase):
             "termos": "yes",
         }
 
-    def test_home_renders_six_offers_and_contact(self):
+    def test_home_renders_twelve_services_and_contact(self):
         response = self.client.get("/")
         self.assertEqual(response.status_code, 200)
         html = response.get_data(as_text=True)
-        self.assertEqual(len(SERVICES), 6)
+        self.assertEqual(len(SERVICES), 12)
+        self.assertIn("E-mail Profissional e Domínios", html)
+        self.assertIn("Impressão 3D Personalizada", html)
+        self.assertIn("Vídeos e Conteúdo com IA", html)
         self.assertIn("Plaquinha NFC", html)
         self.assertIn("Perfil da Empresa no Google", html)
         self.assertIn("5591986152222", html)
@@ -327,7 +330,10 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(CATALOGO_GTECH["planos"]["site_sem_setup"]["preco_centavos"], 12999)
         self.assertEqual(set(CHECKOUT_OFFERS), {"foto", "google"})
         for service in SERVICES:
-            self.assertEqual(service["price"], products[service["id"]]["preco_exibicao"])
+            if service["id"] in products:
+                self.assertEqual(service["price"], products[service["id"]]["preco_exibicao"])
+            else:
+                self.assertNotIn("checkout_sku", service)
 
     def test_direct_mercadopago_checkout_uses_server_amount_not_browser_input(self):
         import io

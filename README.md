@@ -10,7 +10,7 @@ Unificar a **vitrine pública** da G Tech em um único endereço, mantendo os si
 ## O que foi implementado nesta proposta
 - Recriação completa da homepage comercial, com identidade dark premium e efeito cinematográfico leve.
 - Card hero animado de NFC (com fallback acessível); suporte condicional a vídeo real otimizado.
-- Seis ofertas: NFC, sites, Perfil da Empresa no Google, cardápios digitais, restauração de fotos e soluções digitais, com preço ou consulta.
+- Vitrine ampliada para 12 serviços: ofertas originais preservadas e inclusão de e-mail profissional, suporte de TI, redes Wi-Fi, backup, impressão 3D em preparação e conteúdo com IA. Novas ofertas sem checkout direto.
 - Fluxos de navegação e orçamento: menu responsivo, CTA de WhatsApp e formulário sem cobrança.
 - Cards de portfólio, seção institucional, processo de atendimento, depoimentos já existentes, FAQ e rodapé.
 - Fallback sem JS, animações com redução de movimento, suporte mobile, menu teclado e controle de vídeo.
