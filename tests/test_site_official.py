@@ -89,6 +89,7 @@ class OfficialSiteTests(unittest.TestCase):
         data["whatsapp"] = "123"
         response = self.client.post("/lead", data=data)
         self.assertEqual(response.status_code, 422)
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
         html = response.get_data(as_text=True)
         self.assertIn('value="Cliente Exemplo"', html)
         self.assertIn('value="123"', html)
@@ -326,6 +327,7 @@ class OfficialSiteTests(unittest.TestCase):
                 "consentimento": "yes", "termos": "yes",
             })
         self.assertEqual(result.status_code, 422)
+        self.assertIn("no-store", result.headers.get("Cache-Control", ""))
         html = result.get_data(as_text=True)
         self.assertIn('value="Maria da Silva"', html)
         self.assertIn('value="123"', html)
