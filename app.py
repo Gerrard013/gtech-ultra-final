@@ -883,7 +883,7 @@ def create_lead():
             "nome": nome, "whatsapp": whatsapp, "negocio": clean_text(request.form.get("negocio"), 180),
             "cidade": cidade, "servico": servico, "objetivo": objetivo,
             "consentimento": True, "termos": True
-        }, form_errors=field_errors), 422
+        }, form_errors=field_errors), 422, {"Cache-Control": "no-store, private"}
 
     lead = Lead(
         nome=nome,
@@ -946,7 +946,7 @@ def checkout_product(sku: str):
             form_values={"nome": name, "whatsapp": phone,
                          "consentimento": True, "termos": True},
             form_errors=field_errors,
-        ), 422
+        ), 422, {"Cache-Control": "no-store, private"}
 
     lead = Lead(
         nome=name, whatsapp=normalize_mobile(phone) or phone, negocio="Cliente de checkout",
