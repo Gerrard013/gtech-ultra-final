@@ -53,17 +53,25 @@ def normalize_database_url(url: str | None) -> str:
 
 # Public site origin for canonical links and payment callbacks (not Host-header-derived).
 PUBLIC_SITE_URL = os.getenv("GTECH_PUBLIC_URL", "https://gtech-oficial.up.railway.app").strip().rstrip("/")
-if not PUBLIC_SITE_URL.startswith("https://") or "@" in PUBLIC_SITE_URL:
-    raise RuntimeError("GTECH_PUBLIC_URL precisa ser origem HTTPS.")
+_site_parts = urlsplit(PUBLIC_SITE_URL)
+if (_site_parts.scheme != "https" or not _site_parts.netloc
+        or _site_parts.username or _site_parts.password
+        or _site_parts.path or _site_parts.query or _site_parts.fragment):
+    raise RuntimeError("GTECH_PUBLIC_URL precisa conter apenas uma origem HTTPS válida.")
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 INSTANCE_DIR = os.path.join(BASE_DIR, "instance")
 os.makedirs(INSTANCE_DIR, exist_ok=True)
 
+# Production must never silently generate a new signing key at each restart.
+_deployed = bool(os.getenv("RAILWAY_ENVIRONMENT")) or os.getenv("FLASK_ENV") == "production"
+_signing_key = os.getenv("SECRET_KEY", "")
+if _deployed and len(_signing_key) < 32:
+    raise RuntimeError("Configure SECRET_KEY com pelo menos 32 caracteres na produção.")
 app = Flask(__name__, instance_path=INSTANCE_DIR)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config.update(
-    SECRET_KEY=os.getenv("SECRET_KEY", secrets.token_hex(32)),
+    SECRET_KEY=_signing_key or secrets.token_hex(32),
     SQLALCHEMY_DATABASE_URI=normalize_database_url(
         os.getenv("DATABASE_URL")
     )
