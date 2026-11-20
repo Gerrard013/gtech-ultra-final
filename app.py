@@ -1619,14 +1619,33 @@ _NFC_FULFILLMENT_TRANSITIONS = {
 }
 
 
-@app.post("/internal/nfc/fulfillment/<order_id>")
+@app.route("/internal/nfc/fulfillment/<order_id>", methods=["GET","POST"])
 def internal_nfc_fulfillment(order_id):
-    """S2S delivery updates; payment and stock remain separate and authoritative."""
+    """Private delivery activity and updates; payment and stock remain authoritative."""
     _authorize_internal_nfc()
     if not _secure_db_available() and _deployed:
         abort(503)
     if not re.fullmatch(r"[a-f0-9-]{36}", order_id):
         abort(404)
+    if request.method == "GET":
+        order = CheckoutOrder.query.filter_by(id=order_id, sku="nfc").first()
+        if not order:
+            return {"error": "Pedido não encontrado."}, 404
+        record = db.session.get(NfcFulfillment, order_id)
+        events = (NfcFulfillmentEvent.query.filter_by(order_id=order_id)
+                  .order_by(NfcFulfillmentEvent.created_at.desc()).limit(25).all())
+        return {
+            "status": record.status if record else "not_started",
+            "priority": record.priority if record else "normal",
+            "history": [
+                {"id":ev.id,"createdAt":ev.created_at.isoformat()+"Z",
+                 "actor":ev.actor,"oldStatus":ev.old_status,"newStatus":ev.new_status,
+                 "oldPriority":ev.old_priority,"newPriority":ev.new_priority,
+                 "note":ev.note,
+                 "referenceChanged":ev.old_delivery_reference != ev.new_delivery_reference}
+                for ev in events
+            ]
+        }, 200, {"Cache-Control":"no-store, private"}
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return {"error": "Dados inválidos."}, 400
