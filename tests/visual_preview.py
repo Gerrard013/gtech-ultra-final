@@ -181,6 +181,10 @@ try:
             assert "319,96" in page.locator("#nfc-total-price").inner_text()
             assert page.locator(".checkout-submit").is_disabled(), "Preview must never collect payments"
             page.screenshot(path=str(DEST/f"{label}_nfc_quantidade.png"),full_page=True,animations="disabled")
+            # A locked production checkout must still allow a no-charge quantity inquiry.
+            page.context.clear_cookies()
+            page.goto("http://127.0.0.1:5073/comprar/nfc",wait_until="domcontentloaded")
+            assert page.locator("#nfc-quantity").count()==1
             page.close()
         browser.close()
 finally:
