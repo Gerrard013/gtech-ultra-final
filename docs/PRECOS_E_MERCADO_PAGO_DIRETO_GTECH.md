@@ -16,7 +16,7 @@ Abra o link de edição do JSON. Altere os números do campo `preco_centavos` e 
 ### Situação dos produtos no catálogo
 | Produto | Valor base | Compra direta agora? |
 |---|---:|---|
-| NFC | R$ 79,99 | NÃO: depende de estoque, frete e entrega |
+| NFC | R$ 79,99 por unidade | Fluxo preparado; só após estoque validado, entrega local e gate separado |
 | Criação de site | a partir de R$ 500 | NÃO: escopo sob proposta |
 | Google Perfil da Empresa | R$ 150 | Pode ser configurado após aprovação do gateway |
 | Cardápio | Sob orçamento | NÃO |
@@ -49,3 +49,13 @@ Webhook de produção para registrar no Mercado Pago após publicar código segu
 
 ## Status atual
 Logo do cabeçalho corrigida no CSS da branch. Catálogo e rota diretos preparados; testes sintéticos em execução. MetaSimples PR #1 foi **fechada sem merge/deploy** para não criar arquitetura concorrente. Nenhuma credencial ou cobrança alterada.
+
+## Venda NFC com quantidade (revisão 19/11/2026)
+- Catálogo unitário: 7.999 centavos; total definitivo = 7.999 × quantidade.
+- Limite de 1 a 8 unidades por compra, sujeito a estoque disponível; o navegador apenas apresenta estimativa visual. Desconsiderar parâmetros externos de preço.
+- Compra restrita a entregas em Belém/PA nesta fase, com confirmação de endereço/prazo via WhatsApp e aceite explícito.
+- Estoque real persistido em `gtech_nfc_inventory`, com bloqueio de linha PostgreSQL para serializar reservas. A configuração `GTECH_NFC_INITIAL_STOCK` inicia o estoque UMA VEZ quando a primeira compra for criada; não há reposição automática por reinício.
+- `GTECH_NFC_SALES_ENABLED=false` mantém as vendas do NFC desativadas até conferência do estoque, da logística, do Checkout Pro e aprovação do proprietário. `GTECH_CHECKOUT_ENABLED` continua sendo o gate global.
+- Cada pedido que alcança o gateway reserva as unidades. Abandono, expiração, estorno e devolução exigem conferência manual antes de liberar estoque; nunca incrementar automaticamente sem conferir o extrato do Mercado Pago.
+- Se falhar a geração de uma URL de checkout antes de entregá-la ao comprador, o sistema procura liberar a reserva e marca o pedido cancelado. Falhas nessa compensação são registradas para revisão.
+- Os planos recorrentes continuam fora do checkout automático. Nenhum método de pagamento é garantido pelo site: disponibilidade de Pix depende do Mercado Pago.
