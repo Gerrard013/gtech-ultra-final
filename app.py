@@ -150,6 +150,18 @@ class CheckoutOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class NfcInventory(db.Model):
+    """Physical NFC stock; decremented under a DB row lock before checkout."""
+    __tablename__ = "gtech_nfc_inventory"
+    id = db.Column(db.Integer, primary_key=True)
+    available = db.Column(db.Integer, nullable=False, default=0)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NfcStockUnavailable(Exception):
+    """There is no confirmed inventory to reserve for this purchase."""
+
+
 class CheckoutPaymentDelivery(db.Model):
     """Persistent payment outbox: a CRM outage never loses a gateway notification."""
     __tablename__ = "gtech_checkout_payment_deliveries"
@@ -180,6 +192,7 @@ for _sku, _item in CATALOG_PRODUCTS.items():
             "title": _item["titulo"],
             "cents": _cents,
             "description": _item.get("observacao", ""),
+            "max_quantity": _item.get("quantidade_maxima_pedido", 1),
         }
 
 
@@ -202,6 +215,49 @@ def _checkout_enabled() -> bool:
             and os.getenv("MERCADOPAGO_CNPJ_VERIFIED", "false").lower() == "true"
             and os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() != "preview"
             and _mp_credentials_ready() and _secure_db_available())
+
+
+def _nfc_initial_units() -> int:
+    """Explicit count confirmed by the owner; only seeds the inventory once."""
+    raw = os.getenv("GTECH_NFC_INITIAL_STOCK", "").strip()
+    if not re.fullmatch(r"[0-9]{1,3}", raw):
+        return 0
+    units = int(raw)
+    return units if 1 <= units <= 500 else 0
+
+
+def _nfc_available_units() -> int:
+    stock = db.session.get(NfcInventory, 1)
+    return max(0, stock.available) if stock is not None else _nfc_initial_units()
+
+
+def _nfc_checkout_enabled() -> bool:
+    return (
+        _checkout_enabled()
+        and os.getenv("GTECH_NFC_SALES_ENABLED", "false").lower() == "true"
+        and _nfc_available_units() > 0
+        and _secure_db_available()
+    )
+
+
+def _parse_checkout_quantity(sku: str, raw: str | None) -> int | None:
+    text = "1" if raw is None else str(raw).strip()
+    if not re.fullmatch(r"[1-9][0-9]{0,2}", text):
+        return None
+    count = int(text)
+    max_quantity = CHECKOUT_OFFERS[sku]["max_quantity"]
+    if not isinstance(max_quantity, int) or isinstance(max_quantity, bool):
+        return None
+    return count if 1 <= count <= max_quantity else None
+
+
+def _checkout_form_error(sku, offer, preview_only, enabled, values, errors, csrf_token):
+    return render_template(
+        "comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
+        csrf_token=csrf_token, preview_only=preview_only,
+        checkout_enabled=enabled, form_values=values,
+        form_errors=errors, nfc_available=_nfc_available_units() if sku == "nfc" else 0,
+    ), 422, {"Cache-Control": "no-store, private"}
 
 
 def _is_mercadopago_link(url: str) -> bool:
@@ -247,13 +303,20 @@ def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
     expected_collector = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
     if not expected_collector or str(merchant.get("id") or "") != expected_collector:
         raise RuntimeError("A conta recebedora do Mercado Pago não corresponde ao CNPJ configurado")
+    # Defence in depth: never trust amounts or quantities copied from forms/DB.
+    if order.sku not in CHECKOUT_OFFERS:
+        raise ValueError("Produto não autorizado")
+    offer = CHECKOUT_OFFERS[order.sku]
+    if (_parse_checkout_quantity(order.sku, str(order.quantity)) != order.quantity
+            or order.total_cents != order.quantity * offer["cents"]):
+        raise ValueError("Quantidade ou valor de pedido divergente")
     base = PUBLIC_SITE_URL
     item = {
         "id": order.sku,
         "title": title,
         "currency_id": "BRL",
         "quantity": order.quantity,
-        "unit_price": order.total_cents / (100 * order.quantity),
+        "unit_price": offer["cents"] / 100,
     }
     payload = {
         "items": [item],
@@ -313,6 +376,12 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     if status not in allowed:
         return False
     delivery = db.session.get(CheckoutPaymentDelivery, str(payment_id))
+    if delivery is not None and delivery.order_id != pid:
+        return False
+    if delivery is not None and delivery.status == status:
+        # Replayed webhook: no new outbox revision or duplicate accounting.
+        db.session.rollback()
+        return True
     if delivery is None:
         delivery = CheckoutPaymentDelivery(payment_id=str(payment_id), order_id=pid, status=status,
                                            revision=1, delivered_revision=0, attempts=0)
@@ -625,6 +694,7 @@ def index(*, form_values=None, form_errors=None):
         form_values=form_values or {},
         form_errors=form_errors or {},
         checkout_offers=CHECKOUT_OFFERS,
+        nfc_checkout_enabled=_nfc_checkout_enabled(),
         checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
         feedbacks=FEEDBACKS,
         year=datetime.utcnow().year,
@@ -911,7 +981,7 @@ def checkout_product(sku: str):
     if sku not in CHECKOUT_OFFERS:
         abort(404)
     preview_only = os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview"
-    checkout_enabled = _checkout_enabled()
+    checkout_enabled = _nfc_checkout_enabled() if sku == "nfc" else _checkout_enabled()
     if request.method == "POST" and not checkout_enabled:
         abort(503)
     offer = CHECKOUT_OFFERS[sku]
@@ -920,7 +990,8 @@ def checkout_product(sku: str):
     if request.method == "GET":
         return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
                                csrf_token=session["checkout_csrf"], preview_only=preview_only,
-                               checkout_enabled=checkout_enabled)
+                               checkout_enabled=checkout_enabled,
+                               nfc_available=_nfc_available_units() if sku == "nfc" else 0)
 
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
@@ -933,47 +1004,84 @@ def checkout_product(sku: str):
 
     name = clean_text(request.form.get("nome"), 100)
     phone = clean_text(request.form.get("whatsapp"), 40)
+    quantity = _parse_checkout_quantity(sku, request.form.get("quantity"))
+    delivery_confirmed = request.form.get("nfc_local_delivery") == "yes"
+    values = {"nome": name, "whatsapp": phone,
+              "quantity": request.form.get("quantity", "1"),
+              "nfc_local_delivery": delivery_confirmed,
+              "consentimento": True, "termos": True}
     field_errors = {}
     if len(name) < 2:
         field_errors["nome"] = "Informe seu nome com pelo menos 2 caracteres."
     if not valid_phone(phone):
         field_errors["whatsapp"] = "Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo."
+    if quantity is None:
+        field_errors["quantity"] = "Escolha uma quantidade inteira entre 1 e o limite do pedido."
+    if sku == "nfc" and not delivery_confirmed:
+        field_errors["nfc_local_delivery"] = "Confirme que a entrega será em Belém/PA."
     if field_errors:
-        return render_template(
-            "comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
-            csrf_token=session["checkout_csrf"], preview_only=preview_only,
-            checkout_enabled=checkout_enabled,
-            form_values={"nome": name, "whatsapp": phone,
-                         "consentimento": True, "termos": True},
-            form_errors=field_errors,
-        ), 422, {"Cache-Control": "no-store, private"}
+        return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
+                                    field_errors, session["checkout_csrf"])
 
     lead = Lead(
         nome=name, whatsapp=normalize_mobile(phone) or phone, negocio="Cliente de checkout",
-        servico="Fotos ou Restauração" if sku == "foto" else "Perfil da Empresa no Google",
+        servico={"foto": "Fotos ou Restauração", "google": "Perfil da Empresa no Google",
+                 "nfc": "Placa NFC Personalizada"}[sku],
         prazo="O mais rápido possível", objetivo="Pedido G Tech: " + offer["title"],
         origem="checkout_gtech"
     )
     order = CheckoutOrder(
-        id=str(uuid.uuid4()), lead_id=0, sku=sku, quantity=1,
-        total_cents=offer["cents"], status="pending"
+        id=str(uuid.uuid4()), lead_id=0, sku=sku, quantity=quantity,
+        total_cents=offer["cents"] * quantity, status="pending"
     )
+    stock_reserved = False
     try:
         db.session.add(lead)
         db.session.flush()
+        if sku == "nfc":
+            # PostgreSQL SELECT FOR UPDATE serializes concurrent buyers.
+            inventory = NfcInventory.query.filter_by(id=1).with_for_update().one_or_none()
+            if inventory is None:
+                initial = _nfc_initial_units()
+                if initial < 1:
+                    raise NfcStockUnavailable()
+                inventory = NfcInventory(id=1, available=initial)
+                db.session.add(inventory)
+                db.session.flush()
+            if inventory.available < quantity:
+                raise NfcStockUnavailable()
+            inventory.available -= quantity
         order.lead_id = lead.id
         db.session.add(order)
         db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", privacy_version="2026-11-16", terms_version="2026-11-16"))
         db.session.commit()
+        stock_reserved = sku == "nfc"
         gateway_url = _create_mercadopago_preference(order, offer["title"])
         order.checkout_url = gateway_url
         db.session.commit()
         session["last_checkout_order"] = order.id
         return redirect(gateway_url, code=303)
+    except NfcStockUnavailable:
+        db.session.rollback()
+        return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
+                                    {"quantity": "Estoque insuficiente. Reduza a quantidade ou solicite orçamento."},
+                                    session["checkout_csrf"])
     except Exception as exc:
         db.session.rollback()
         app.logger.warning("Mercado Pago: criação indisponível: %s", type(exc).__name__)
-        # Preserve lead/order for recovery. Do not declare a payment successful.
+        if stock_reserved:
+            # A checkout URL was never delivered to the customer.
+            # Restore units only for a failed creation; paid/cancelled orders
+            # are never restocked automatically without reconciliation.
+            try:
+                inventory = NfcInventory.query.filter_by(id=1).with_for_update().one()
+                inventory.available += quantity
+                order.status = "cancelled"
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+                app.logger.error("NFC inventory reservation needs manual review; order %s", order.id)
+        # Never show a payment as successful after a gateway error.
         return redirect(url_for("payment_result", order_id=order.id))
 
 
