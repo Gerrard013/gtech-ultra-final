@@ -21,7 +21,7 @@ SENTINELA é o novo membro do IA Council, com responsabilidade técnica por segu
 | Média | Risco de oversell / múltiplas requisições | Lock de estoque em transação DB; não repõe estoque automaticamente em abandono | Reconciliar pedidos abandonados/cancelados antes de liberar reservas; testar concorrência em Postgres |
 | Média | Reenvio repetido do mesmo status por webhook | Não duplica revisão do outbox se o status do pagamento já é igual | Observabilidade e alertas de falhas |
 | Média | Processo do contêiner rodava como root | Dockerfile revisado para usuário não privilegiado | Validar execução real no Railway |
-| Média | Dependências fixadas exigem auditoria de CVE | Job pip-audit proposto para CI | Corrigir alertas verificados, atualizar dependências com testes |
+| Alta | pip-audit identificou vulnerabilidade PYSEC-2026-2151 no Flask 3.0.3 | Atualização proposta para Flask 3.1.3 | Confirmar teste CI, compatibilidade e novo deploy autorizado |
 | Média | Rate limit e proteção do admin somente em memória do processo | Nenhuma alteração arriscada sem infraestrutura | Rate limiting distribuído e WAF, validação de proxy e regras de acesso |
 | Média | Compra física sem cálculo de frete fora de Belém | Restrição explícita a entrega em Belém/PA e aceite | Confirmar política comercial com a equipe e jurídico |
 | Média | Dados pessoais e textos legais | Renderização Jinja escapada e resposta 422 no-store | Revisão LGPD, consentimento, prazo de retenção e direitos do consumidor |
