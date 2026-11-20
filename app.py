@@ -1442,8 +1442,26 @@ def internal_nfc_stock():
         abort(503)
     if request.method == "GET":
         history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
+        # Full addresses are only sent over the private S2S channel to CEO/ADMIN CRM.
+        recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(25).all()
+        orders = []
+        for item in recent:
+            addr = db.session.get(NfcDeliveryAddress, item.id)
+            lead = db.session.get(Lead, item.lead_id)
+            orders.append({
+                "id": item.id, "status": item.status, "quantity": item.quantity,
+                "totalCents": item.total_cents,
+                "buyer": lead.nome if lead else "", "phone": lead.whatsapp if lead else "",
+                "createdAt": item.created_at.isoformat() + "Z",
+                "address": {
+                    "cep": addr.cep, "state": addr.state, "city": addr.city,
+                    "neighborhood": addr.neighborhood, "street": addr.street,
+                    "number": addr.number, "complement": addr.complement or ""
+                } if addr else None,
+            })
         return {
             "sku": "nfc", "available": _nfc_available_units(),
+            "orders": orders,
             "unitPriceCents": CHECKOUT_OFFERS["nfc"]["cents"],
             "maxPerOrder": CHECKOUT_OFFERS["nfc"]["max_quantity"],
             "movements": [
