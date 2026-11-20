@@ -1526,6 +1526,9 @@ def internal_nfc_stock():
     if request.method == "GET":
         history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
         # Full addresses are only sent over the private S2S channel to CEO/ADMIN CRM.
+        # Total is required by CRM scanners to distinguish complete queues from
+        # the last 100 orders; stale older alerts must never be auto-resolved.
+        total_orders = CheckoutOrder.query.filter_by(sku="nfc").count()
         recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(100).all()
         refs = [o.id for o in recent]
         addresses = {a.order_id: a for a in NfcDeliveryAddress.query.filter(NfcDeliveryAddress.order_id.in_(refs)).all()} if refs else {}
@@ -1559,6 +1562,7 @@ def internal_nfc_stock():
             })
         return {
             "sku": "nfc", "available": _nfc_available_units(),
+            "totalOrders": total_orders,
             "orders": orders,
             "unitPriceCents": CHECKOUT_OFFERS["nfc"]["cents"],
             "maxPerOrder": CHECKOUT_OFFERS["nfc"]["max_quantity"],
