@@ -88,7 +88,17 @@ class OfficialSiteTests(unittest.TestCase):
         data = self.lead_data()
         data["whatsapp"] = "123"
         response = self.client.post("/lead", data=data)
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 422)
+        html = response.get_data(as_text=True)
+        self.assertIn('value="Cliente Exemplo"', html)
+        self.assertIn('value="123"', html)
+        self.assertIn('aria-invalid="true"', html)
+        self.assertIn('id="quote-phone-error"', html)
+        self.assertIn('value="Loja de testes"', html)
+        self.assertIn('value="Belém"', html)
+        self.assertIn('value="yes" required checked', html)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
@@ -103,7 +113,7 @@ class OfficialSiteTests(unittest.TestCase):
             payload = self.lead_data()
             payload["whatsapp"] = number
             response = self.client.post("/lead", data=payload)
-            self.assertEqual(response.status_code, 302, number)
+            self.assertEqual(response.status_code, 422, number)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
@@ -302,6 +312,28 @@ class OfficialSiteTests(unittest.TestCase):
             delivery=db.session.get(CrmDelivery,lead.id)
             self.assertEqual(delivery.status,"pending")
             self.assertEqual(delivery.attempts,1)
+
+    def test_checkout_invalid_phone_preserves_name_and_consent(self):
+        # Unit-test the validation branch without activating real payments.
+        with patch("app._checkout_enabled", return_value=True):
+            page = self.client.get("/comprar/google")
+            self.assertEqual(page.status_code, 200)
+            with self.client.session_transaction() as sess:
+                csrf_token = sess["checkout_csrf"]
+            result = self.client.post("/comprar/google", data={
+                "csrf_token": csrf_token,
+                "nome": "Maria da Silva", "whatsapp": "123",
+                "consentimento": "yes", "termos": "yes",
+            })
+        self.assertEqual(result.status_code, 422)
+        html = result.get_data(as_text=True)
+        self.assertIn('value="Maria da Silva"', html)
+        self.assertIn('value="123"', html)
+        self.assertIn('id="checkout-phone-error"', html)
+        self.assertIn('aria-invalid="true"', html)
+        self.assertNotIn("mercadopago.com/checkout", result.headers.get("Location", ""))
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
 
     def test_checkout_disabled_until_real_gateway_configured(self):
         for sku in ("foto", "google"):
