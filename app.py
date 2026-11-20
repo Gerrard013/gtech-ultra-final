@@ -329,14 +329,14 @@ def _previous_checkout_attempt(intent_hash: str):
     return redirect(url_for("payment_result", order_id=order.id), code=303)
 
 
-def _checkout_form_error(sku, offer, preview_only, enabled, values, errors, csrf_token):
+def _checkout_form_error(sku, offer, preview_only, enabled, values, errors, csrf_token, status_code=422):
     return render_template(
         "comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
         csrf_token=csrf_token, preview_only=preview_only,
         checkout_enabled=enabled, form_values=values,
         form_errors=errors, nfc_available=_nfc_available_units() if sku == "nfc" else 0,
         checkout_intent=values.get("checkout_intent", ""),
-    ), 422, {"Cache-Control": "no-store, private"}
+    ), status_code, {"Cache-Control": "no-store, private"}
 
 
 def _is_mercadopago_link(url: str) -> bool:
@@ -1187,13 +1187,23 @@ def checkout_product(sku: str):
         db.session.commit()
         session["last_checkout_order"] = order.id
         return redirect(gateway_url, code=303)
-    except IntegrityError:
+    except IntegrityError as exc:
         db.session.rollback()
         old = _previous_checkout_attempt(intent_hash)
         if old is not None:
             return old
-        app.logger.warning("NFC/checkout: conflict while reserving inventory or nonce")
-        return Response("Não foi possível confirmar o pedido. Tente novamente.", 409)
+        # Log only a PostgreSQL SQLSTATE and structural constraint name.
+        # Never log SQL parameters, address, phone, token, or entire exception.
+        origin = getattr(exc, "orig", None)
+        diag = getattr(origin, "diag", None)
+        sqlstate = getattr(origin, "sqlstate", None) or getattr(origin, "pgcode", None) or "unknown"
+        raw_constraint = getattr(diag, "constraint_name", None) or "unknown"
+        constraint = re.sub(r"[^A-Za-z0-9_]", "", str(raw_constraint))[:80]
+        app.logger.error("Checkout: DB integrity conflict sqlstate=%s constraint=%s", sqlstate, constraint)
+        return _checkout_form_error(
+            sku, offer, preview_only, checkout_enabled, values,
+            {"checkout_error": "Não conseguimos registrar seu pedido. Seus dados foram preservados; tente novamente."},
+            session["checkout_csrf"], status_code=409)
     except NfcStockUnavailable:
         db.session.rollback()
         return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
@@ -1216,7 +1226,10 @@ def checkout_product(sku: str):
                 app.logger.error("NFC inventory reservation needs manual review; order %s", order.id)
         # Never show a payment as successful after a gateway error.
         if not persisted:
-            return Response("Não foi possível registrar o pedido. Tente novamente.", 503)
+            return _checkout_form_error(
+                sku, offer, preview_only, checkout_enabled, values,
+                {"checkout_error": "O pedido não foi salvo. Revise os dados e tente novamente."},
+                session["checkout_csrf"], status_code=503)
         return redirect(url_for("payment_result", order_id=order.id))
 
 
@@ -1536,7 +1549,29 @@ def not_found(_error):
     return render_template("404.html", contacts=CONTACTS), 404
 
 
+def _verify_mercadopago_merchant_after_boot():
+    """Read-only gateway preflight; never transmits order data or creates charges."""
+    if not (os.getenv("RAILWAY_ENVIRONMENT", "").lower() == "production"
+            and os.getenv("GTECH_CHECKOUT_ENABLED", "").lower() == "true"):
+        return
+    try:
+        result = _mp_request("/users/me", timeout=8)
+        actual = str(result.get("id") or "")
+        expected = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
+        if expected and hmac.compare_digest(actual, expected):
+            app.logger.info("Mercado Pago credential read-only preflight: merchant MATCH")
+        else:
+            app.logger.error("Mercado Pago credential read-only preflight: merchant MISMATCH")
+    except Exception as exc:
+        status_code = getattr(exc, "code", "unavailable")
+        app.logger.error("Mercado Pago credential preflight failed: type=%s status=%s",
+                         type(exc).__name__, status_code)
+
+
 _start_payment_sync_worker()
+if os.getenv("RAILWAY_ENVIRONMENT", "").lower() == "production":
+    threading.Thread(target=_verify_mercadopago_merchant_after_boot,
+                     daemon=True, name="mp-merchant-preflight").start()
 
 
 if __name__ == "__main__":
