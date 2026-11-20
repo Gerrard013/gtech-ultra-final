@@ -156,7 +156,7 @@ try:
             page.wait_for_timeout(4200)
             page.locator("#comprar").scroll_into_view_if_needed()
             page.wait_for_timeout(300)
-            assert page.locator("#comprar .offer-card").count()==2
+            assert page.locator("#comprar .offer-card").count()==3
             assert page.locator("#comprar .offer-cta").first.get_attribute("href")=="/comprar/foto"
             page.screenshot(path=str(DEST/f"{label}_ofertas.png"),animations="disabled")
             page.locator("#comprar .offer-cta").first.click()
@@ -164,6 +164,15 @@ try:
             assert page.locator(".checkout-submit").is_disabled()
             assert page.evaluate("document.documentElement.scrollWidth-window.innerWidth")<=3
             page.screenshot(path=str(DEST/f"{label}_checkout.png"),full_page=True,animations="disabled")
+            page.goto("http://127.0.0.1:5073/comprar/nfc",wait_until="domcontentloaded")
+            assert page.locator("#nfc-quantity").count()==1
+            page.locator("#nfc-quantity").fill("3")
+            assert "239,97" in page.locator("#nfc-total-price").inner_text()
+            page.locator('[data-quantity-step="1"]').click()
+            assert page.locator("#nfc-quantity").input_value()=="4"
+            assert "319,96" in page.locator("#nfc-total-price").inner_text()
+            assert page.locator(".checkout-submit").is_disabled(), "Preview must never collect payments"
+            page.screenshot(path=str(DEST/f"{label}_nfc_quantidade.png"),full_page=True,animations="disabled")
             page.close()
         browser.close()
 finally:
