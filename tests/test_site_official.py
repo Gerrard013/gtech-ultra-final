@@ -366,6 +366,9 @@ class OfficialSiteTests(unittest.TestCase):
             with self.client.session_transaction() as sess:
                 csrf_token = sess["checkout_csrf"]
             for quantity in ("0", "-1", "9", "9999", "1.5", "abc"):
+                # Each simulated visitor uses a fresh request-rate window.
+                with _lead_attempts_lock:
+                    _lead_attempts.clear()
                 with self.subTest(quantity=quantity):
                     response = self.client.post("/comprar/nfc", data={
                         "csrf_token": csrf_token, "nome": "Cliente Exemplo",
@@ -378,6 +381,8 @@ class OfficialSiteTests(unittest.TestCase):
             with app.app_context():
                 self.assertEqual(Lead.query.count(), 0)
                 self.assertEqual(CheckoutOrder.query.count(), 0)
+            with _lead_attempts_lock:
+                _lead_attempts.clear()
             with patch("app._mp_request", side_effect=gateway):
                 success = self.client.post("/comprar/nfc", data={
                     "csrf_token": csrf_token, "nome": "Cliente Exemplo",
