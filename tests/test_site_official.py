@@ -466,6 +466,60 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(NfcInventory.query.one().available, 1)
                 self.assertEqual(CheckoutOrder.query.count(), 1)
 
+    def test_nfc_test_order_archival_is_reversible_but_never_refunds_or_restocks(self):
+        from app import CheckoutOrder, NfcInventory, NfcFulfillment, NfcFulfillmentEvent
+        import uuid
+        secret="temporary-private-test-secret-123456789"
+        with patch.dict(os.environ, {"GTECH_NFC_STOCK_SECRET":secret, "GTECH_NFC_INITIAL_STOCK":"8"}):
+            headers={"X-GTech-NFC-Key":secret}
+            with app.app_context():
+                lead=Lead(nome="Comprador Fictício",whatsapp="91982736418",
+                          negocio="Teste",servico="Placa NFC Personalizada",
+                          prazo="Teste",objetivo="Teste de compra")
+                db.session.add(lead)
+                db.session.flush()
+                order=CheckoutOrder(id=str(uuid.uuid4()),lead_id=lead.id,
+                    sku="nfc",quantity=1,total_cents=7999,status="pending")
+                db.session.add(order)
+                db.session.commit()
+                order_id=order.id
+            request_data={"actionId":str(uuid.uuid4()),"actor":"CEO teste",
+                          "status":"archived_test","priority":"normal",
+                          "deliveryReference":"",
+                          "note":"Pedido fictício sem pagamento; arquivar teste"}
+            no_auth=self.client.post("/internal/nfc/fulfillment/"+order_id,json=request_data)
+            self.assertEqual(no_auth.status_code,403)
+            archive=self.client.post("/internal/nfc/fulfillment/"+order_id,json=request_data,headers=headers)
+            self.assertEqual(archive.status_code,200)
+            repeated=self.client.post("/internal/nfc/fulfillment/"+order_id,json=request_data,headers=headers)
+            self.assertTrue(repeated.json["duplicate"])
+            listing=self.client.get("/internal/nfc/stock",headers=headers).json
+            row=next(o for o in listing["orders"] if o["id"]==order_id)
+            self.assertEqual(row["operationalPriority"],"archived")
+            self.assertEqual(row["status"],"pending")
+            self.assertEqual(row["fulfillment"]["status"],"archived_test")
+            with app.app_context():
+                self.assertEqual(NfcInventory.query.first(),None)
+                self.assertEqual(NfcFulfillmentEvent.query.count(),1)
+                self.assertEqual(NfcFulfillment.query.one().status,"archived_test")
+                db.session.get(CheckoutOrder,order_id).status="approved"
+                db.session.commit()
+            listing=self.client.get("/internal/nfc/stock",headers=headers).json
+            row=next(o for o in listing["orders"] if o["id"]==order_id)
+            self.assertEqual(row["operationalPriority"],"urgent")
+            unarchive=self.client.post("/internal/nfc/fulfillment/"+order_id,headers=headers,json={
+                **request_data,"actionId":str(uuid.uuid4()),"status":"not_started",
+                "note":"Reabrir teste devido a pagamento encontrado"
+            })
+            self.assertEqual(unarchive.status_code,200)
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.first().status,"approved")
+            attempt=self.client.post("/internal/nfc/fulfillment/"+order_id,headers=headers,json={
+                **request_data,"actionId":str(uuid.uuid4()),"status":"archived_test",
+                "note":"Tentar arquivar venda paga não permitido"
+            })
+            self.assertEqual(attempt.status_code,409)
+
     def test_nfc_crm_queue_reports_address_and_priority_before_payment(self):
         from app import CheckoutOrder, NfcDeliveryAddress
         import uuid
