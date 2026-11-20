@@ -520,6 +520,30 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(order.quantity, 3)
                 self.assertEqual(NfcInventory.query.one().available, 5)
 
+    def test_private_stock_api_blocks_unauthorized_and_audits_valid_adjustments(self):
+        from app import NfcStockMovement
+        import uuid
+        with patch.dict(os.environ, {"GTECH_NFC_INITIAL_STOCK": "8",
+                                     "GTECH_NFC_STOCK_SECRET": "x"*48}):
+            self.assertEqual(self.client.get("/internal/nfc/stock").status_code, 403)
+            headers = {"X-GTech-NFC-Key": "x"*48}
+            initial = self.client.get("/internal/nfc/stock", headers=headers)
+            self.assertEqual(initial.status_code, 200)
+            self.assertEqual(initial.json["available"], 8)
+            change = {"movementId": str(uuid.uuid4()), "delta": -2,
+                      "reason": "Conferência física do estoque", "actor": "Gestor G Tech"}
+            response = self.client.post("/internal/nfc/stock", json=change, headers=headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json["available"], 6)
+            duplicate = self.client.post("/internal/nfc/stock", json=change, headers=headers)
+            self.assertEqual(duplicate.json.get("duplicate"), True)
+            self.assertEqual(duplicate.json["available"], 6)
+            denied = self.client.post("/internal/nfc/stock",
+                json={**change, "movementId": str(uuid.uuid4()), "delta": -7}, headers=headers)
+            self.assertEqual(denied.status_code, 409)
+            with app.app_context():
+                self.assertEqual(NfcStockMovement.query.count(), 1)
+
     def test_nfc_fallback_allows_quantity_inquiry_without_charging(self):
         from app import CheckoutOrder
         page = self.client.get("/comprar/nfc")
