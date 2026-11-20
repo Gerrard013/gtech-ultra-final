@@ -1517,6 +1517,29 @@ def _nfc_operational_priority(order, fulfillment, now):
     return "waiting", "Aguardando confirmação de pagamento"
 
 
+@app.get("/internal/nfc/health")
+def internal_nfc_health():
+    """Read-only, private S2S conformity contract. Never return merchant identifiers,
+    payment details, contacts, credentials, session data, or an implicit approval."""
+    _authorize_internal_nfc()
+    if not _secure_db_available() and _deployed:
+        abort(503)
+    pending = CheckoutPaymentDelivery.query.filter(
+        CheckoutPaymentDelivery.delivered_revision < CheckoutPaymentDelivery.revision
+    ).count()
+    return {
+        "contractVersion": 1,
+        "databasePersistent": _secure_db_available(),
+        "gatewayConfigured": _mp_credentials_ready(),
+        "checkoutEnabled": _checkout_enabled(),
+        "nfcSalesEnabled": _nfc_checkout_enabled(),
+        "crmLeadSyncEnabled": os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() == "true",
+        "crmPaymentSyncEnabled": os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() == "true",
+        "pendingPaymentSync": pending,
+        "totalNfcOrders": CheckoutOrder.query.filter_by(sku="nfc").count(),
+    }, 200, {"Cache-Control": "no-store, private"}
+
+
 @app.route("/internal/nfc/stock", methods=["GET", "POST"])
 def internal_nfc_stock():
     """Private CRM proxy endpoint; no unauthenticated order or address access."""
