@@ -12,3 +12,14 @@
 #quote-form .field-error, #checkout-form .field-error{display:block;color:#ff9caa;font-size:12px;line-height:1.5;font-weight:650;margin-top:4px}
 #quote-form .field-error[hidden], #checkout-form .field-error[hidden]{display:none!important}
 #quote-form [aria-invalid="true"]:focus-visible,#checkout-form [aria-invalid="true"]:focus-visible{outline:2px solid #ff9caa;outline-offset:2px}
+
+/* Accessible quantity selector: minimum 44px touch targets; no fixed mobile width. */
+.nfc-quantity-panel{display:grid;gap:9px;padding:14px;border:1px solid #34566b;border-radius:14px;background:#10263b}
+.nfc-quantity-panel>label{font-weight:800;font-size:13px}
+.nfc-quantity-controls{display:grid;grid-template-columns:48px minmax(65px,1fr) 48px;gap:10px;max-width:250px;align-items:center}
+.checkout-form .nfc-quantity-controls input{text-align:center;min-width:0;appearance:textfield;-moz-appearance:textfield}
+.nfc-quantity-controls input::-webkit-outer-spin-button,.nfc-quantity-controls input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.nfc-quantity-controls button{height:48px;min-width:48px;border:1px solid #5abed2;border-radius:12px;color:#c4f5ff;background:#14334b;font-size:23px;font-weight:800;cursor:pointer}
+.nfc-quantity-controls button:focus-visible{outline:2px solid #79e9f9;outline-offset:2px}
+.nfc-quantity-panel .form-helper{font-size:11px;line-height:1.5;color:#b1cbda}
+@media(max-width:650px){.nfc-quantity-controls{max-width:100%}}
