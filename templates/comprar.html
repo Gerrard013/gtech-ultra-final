@@ -29,6 +29,7 @@
 {% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div role="alert">{% for category,message in messages %}<p class="checkout-alert">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
 <form action="{{ url_for('checkout_product',sku=sku) }}" method="post" id="checkout-form">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+<input type="hidden" name="checkout_intent" value="{{ checkout_intent }}">
 <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
 <label>Seu nome completo<input name="nome" required minlength="2" maxlength="100" autocomplete="name" placeholder="Nome e sobrenome" value="{{ (form_values or {}).get('nome','') }}" aria-describedby="checkout-name-error" {% if (form_errors or {}).get('nome') %}aria-invalid="true"{% endif %}><small id="checkout-name-error" class="field-error" role="alert" {% if not (form_errors or {}).get('nome') %}hidden{% endif %}>{{ (form_errors or {}).get('nome','') }}</small></label>
 <label>WhatsApp com DDD<input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" value="{{ (form_values or {}).get('whatsapp','') }}" aria-describedby="checkout-phone-error" {% if (form_errors or {}).get('whatsapp') %}aria-invalid="true"{% endif %}><small id="checkout-phone-error" class="field-error" role="alert" {% if not (form_errors or {}).get('whatsapp') %}hidden{% endif %}>{{ (form_errors or {}).get('whatsapp','') }}</small></label>
