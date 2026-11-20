@@ -23,3 +23,13 @@
 .nfc-quantity-controls button:focus-visible{outline:2px solid #79e9f9;outline-offset:2px}
 .nfc-quantity-panel .form-helper{font-size:11px;line-height:1.5;color:#b1cbda}
 @media(max-width:650px){.nfc-quantity-controls{max-width:100%}}
+
+/* NFC shipping: responsive address fields; hidden modes must not block payment. */
+.nfc-shipping-options{display:grid;gap:10px;padding:14px;border:1px solid #34566b;border-radius:14px;margin-block:12px;background:#0d2236}
+.nfc-shipping-options>label{font-weight:750}
+.nfc-shipping-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nfc-shipping-grid label{display:grid;gap:4px;min-width:0}
+.nfc-shipping-grid label.span-2{grid-column:span 2}
+.nfc-shipping-grid input,.nfc-shipping-options select{max-width:100%;min-width:0}
+#nfc-local-address[hidden],#nfc-local-confirmation[hidden],#nfc-nationwide-quote[hidden],.checkout-submit[hidden]{display:none!important}
+@media(max-width:590px){.nfc-shipping-grid{grid-template-columns:1fr}.nfc-shipping-grid label.span-2{grid-column:auto}}
