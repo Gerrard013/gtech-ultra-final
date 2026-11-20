@@ -21,12 +21,24 @@
   <link rel="preload" as="image" href="{{ url_for('static',filename='assets/gtech-logo.png') }}">
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='official.css', v='20261117') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='official.css', v='20261119-intro-first') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='commerce.css', v='20261117') }}">
-  <script defer src="{{ url_for('static', filename='official.js', v='20261116-form400') }}"></script>
+  <script defer src="{{ url_for('static', filename='official.js', v='20261119-intro-first') }}"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"{{ public_site_url }}/","logo":"{{ public_site_url }}/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
 <body>
+  <!-- Branded opening is in the initial HTML before the hero video loads. -->
+    <div class="gtech-intro" id="gtech-intro-start" role="dialog" aria-modal="true" aria-label="Abertura cinematográfica da G Tech">
+      <canvas id="gtech-intro-canvas" aria-hidden="true"></canvas>
+      <div class="intro-vignette" aria-hidden="true"></div>
+      <div class="intro-center">
+        <img class="intro-logo" id="gtech-intro-logo" src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="G Tech — escudo original, G, órbita e assinatura Innovation &amp; Solutions">
+      </div>
+      <div class="intro-progress"><span id="gtech-intro-progress"></span></div>
+      <button class="intro-skip" type="button" id="gtech-intro-skip">Pular abertura <span aria-hidden="true">→</span></button>
+      <div class="intro-coordinate" aria-hidden="true">G TECH / THE FUTURE IS NOW</div>
+    </div>
+  <noscript><style>#gtech-intro-start{display:none!important}</style></noscript>
   <template id="gtech-intro-template">
     <div class="gtech-intro" role="dialog" aria-modal="true" aria-label="Abertura cinematográfica da G Tech">
       <canvas id="gtech-intro-canvas" aria-hidden="true"></canvas>
@@ -78,7 +90,7 @@
           <div class="product-scene">
             <div class="scene-top"><span class="scene-live"><i></i> VÍDEO 01 • DEMONSTRAÇÃO REAL</span><span>BELÉM/PA</span></div>
             {% if belem_video_available %}
-            <video id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay loop preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração real da G Tech no Belém Studio em Batista Campos, Belém"><source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4"></video>
+            <video id="showcase-video" class="scene-video belem-video" controls muted playsinline loop preload="metadata" poster="{{ url_for('static',filename='media/belem-studio-nfc-poster.jpg') }}" aria-label="Vídeo 1: demonstração real da G Tech no Belém Studio em Batista Campos, Belém"><source src="{{ url_for('static',filename='media/belem-studio-nfc.mp4') }}" type="video/mp4"></video>
             <button id="showcase-sound" class="video-toggle belem-sound" type="button" aria-label="Reiniciar demonstração e ativar som">▶ Ouvir explicação</button>
             <button class="video-toggle" id="video-toggle" type="button" aria-label="Pausar vídeo">Pausar animação</button>
             {% else %}
