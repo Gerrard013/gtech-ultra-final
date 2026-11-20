@@ -176,6 +176,32 @@ class NfcInventory(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class NfcStockMovement(db.Model):
+    """Audited manual inventory adjustments; source of truth is the site's database."""
+    __tablename__ = "gtech_nfc_stock_movements"
+    id = db.Column(db.String(36), primary_key=True)
+    delta = db.Column(db.Integer, nullable=False)
+    available_before = db.Column(db.Integer, nullable=False)
+    available_after = db.Column(db.Integer, nullable=False)
+    actor = db.Column(db.String(100), nullable=False)
+    reason = db.Column(db.String(240), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
+class NfcDeliveryAddress(db.Model):
+    """Private fulfillment data; never placed in Mercado Pago URLs or public order pages."""
+    __tablename__ = "gtech_nfc_delivery_addresses"
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), primary_key=True)
+    cep = db.Column(db.String(8), nullable=False)
+    state = db.Column(db.String(2), nullable=False)
+    city = db.Column(db.String(90), nullable=False)
+    neighborhood = db.Column(db.String(90), nullable=False)
+    street = db.Column(db.String(160), nullable=False)
+    number = db.Column(db.String(20), nullable=False)
+    complement = db.Column(db.String(160), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class NfcStockUnavailable(Exception):
     """There is no confirmed inventory to reserve for this purchase."""
 
@@ -1068,11 +1094,22 @@ def checkout_product(sku: str):
     phone = clean_text(request.form.get("whatsapp"), 40)
     quantity = _parse_checkout_quantity(sku, request.form.get("quantity"))
     delivery_confirmed = request.form.get("nfc_local_delivery") == "yes"
+    region = clean_text(request.form.get("nfc_delivery_region"), 16) or "local"
+    address = {
+        "cep": re.sub(r"\D", "", request.form.get("nfc_cep", "")),
+        "city": clean_text(request.form.get("nfc_city"), 90),
+        "state": clean_text(request.form.get("nfc_state"), 2).upper(),
+        "street": clean_text(request.form.get("nfc_street"), 160),
+        "number": clean_text(request.form.get("nfc_number"), 20),
+        "neighborhood": clean_text(request.form.get("nfc_neighborhood"), 90),
+        "complement": clean_text(request.form.get("nfc_complement"), 160),
+    }
     values = {"nome": name, "whatsapp": phone,
               "quantity": request.form.get("quantity", "1"),
               "checkout_intent": intent,
               "nfc_local_delivery": delivery_confirmed,
-              "consentimento": True, "termos": True}
+              "nfc_delivery_region": region,
+              "consentimento": True, "termos": True, **{"nfc_" + k: v for k,v in address.items()}}
     field_errors = {}
     if len(name) < 2:
         field_errors["nome"] = "Informe seu nome com pelo menos 2 caracteres."
@@ -1080,8 +1117,20 @@ def checkout_product(sku: str):
         field_errors["whatsapp"] = "Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo."
     if quantity is None:
         field_errors["quantity"] = "Escolha uma quantidade inteira entre 1 e o limite do pedido."
-    if sku == "nfc" and not delivery_confirmed:
-        field_errors["nfc_local_delivery"] = "Confirme que a entrega será em Belém/PA."
+    if sku == "nfc":
+        if region != "local":
+            field_errors["nfc_delivery_region"] = "Outras cidades e estados exigem cotação prévia de frete. Use Solicitar frete."
+        if not delivery_confirmed:
+            field_errors["nfc_local_delivery"] = "Confirme que a entrega será em Belém/PA."
+        if not re.fullmatch(r"[0-9]{8}", address["cep"]):
+            field_errors["nfc_cep"] = "Informe um CEP válido com 8 números."
+        if address["state"] != "PA" or address["city"].casefold() not in {"belém", "belem"}:
+            field_errors["nfc_city"] = "Pagamento com entrega incluída apenas para Belém/PA. Outras cidades: cotar frete."
+        for field, title in [("street", "logradouro"), ("number", "número"), ("neighborhood", "bairro")]:
+            if len(address[field]) < 2:
+                field_errors["nfc_" + field] = "Informe " + title + " para a entrega."
+        if not re.fullmatch(r"[0-9A-Za-zÀ-ÿ .,/-]{2,160}", address["street"]) or len(address["number"]) > 20:
+            field_errors["nfc_street"] = "Confira o endereço de entrega."
     if field_errors:
         return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
                                     field_errors, session["checkout_csrf"])
@@ -1117,6 +1166,12 @@ def checkout_product(sku: str):
             inventory.available -= quantity
         order.lead_id = lead.id
         db.session.add(order)
+        if sku == "nfc":
+            db.session.add(NfcDeliveryAddress(
+                order_id=order.id, cep=address["cep"], state=address["state"],
+                city=address["city"], street=address["street"],
+                neighborhood=address["neighborhood"], number=address["number"],
+                complement=address["complement"] or None))
         db.session.add(CheckoutAttempt(token_hash=intent_hash, order_id=order.id))
         db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", privacy_version="2026-11-16", terms_version="2026-11-16"))
         db.session.commit()
@@ -1374,6 +1429,90 @@ def sitemap():
         "</urlset>"
     )
     return Response(content, mimetype="application/xml")
+
+
+@app.route("/internal/nfc/stock", methods=["GET", "POST"])
+def internal_nfc_stock():
+    """Private CRM proxy endpoint: never accessible without a shared S2S secret."""
+    secret = os.getenv("GTECH_NFC_STOCK_SECRET", "").strip()
+    supplied = request.headers.get("X-GTech-NFC-Key", "")
+    if len(secret) < 32 or not hmac.compare_digest(supplied, secret):
+        abort(403)
+    if not _secure_db_available() and _deployed:
+        abort(503)
+    if request.method == "GET":
+        history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
+        # Full addresses are only sent over the private S2S channel to CEO/ADMIN CRM.
+        recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(25).all()
+        orders = []
+        for item in recent:
+            addr = db.session.get(NfcDeliveryAddress, item.id)
+            lead = db.session.get(Lead, item.lead_id)
+            orders.append({
+                "id": item.id, "status": item.status, "quantity": item.quantity,
+                "totalCents": item.total_cents,
+                "buyer": lead.nome if lead else "", "phone": lead.whatsapp if lead else "",
+                "createdAt": item.created_at.isoformat() + "Z",
+                "address": {
+                    "cep": addr.cep, "state": addr.state, "city": addr.city,
+                    "neighborhood": addr.neighborhood, "street": addr.street,
+                    "number": addr.number, "complement": addr.complement or ""
+                } if addr else None,
+            })
+        return {
+            "sku": "nfc", "available": _nfc_available_units(),
+            "orders": orders,
+            "unitPriceCents": CHECKOUT_OFFERS["nfc"]["cents"],
+            "maxPerOrder": CHECKOUT_OFFERS["nfc"]["max_quantity"],
+            "movements": [
+                {"id": h.id, "delta": h.delta,
+                 "before": h.available_before, "after": h.available_after,
+                 "actor": h.actor, "reason": h.reason,
+                 "createdAt": h.created_at.isoformat() + "Z"} for h in history
+            ],
+        }, 200, {"Cache-Control": "no-store, private"}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return {"error": "JSON inválido."}, 400
+    movement_id = payload.get("movementId")
+    delta = payload.get("delta")
+    reason = payload.get("reason")
+    actor = payload.get("actor")
+    if (not isinstance(movement_id, str) or len(movement_id) != 36
+            or not re.fullmatch(r"[0-9a-f-]{36}", movement_id)
+            or type(delta) is not int or delta == 0 or abs(delta) > 500
+            or not isinstance(reason, str) or not (8 <= len(reason.strip()) <= 240)
+            or not isinstance(actor, str) or not (2 <= len(actor.strip()) <= 100)):
+        return {"error": "Movimento inválido; informe quantidade e justificativa."}, 400
+    try:
+        existing = db.session.get(NfcStockMovement, movement_id)
+        if existing is not None:
+            return {"ok": True, "available": _nfc_available_units(),
+                    "duplicate": True}, 200, {"Cache-Control": "no-store, private"}
+        row = NfcInventory.query.filter_by(id=1).with_for_update().one_or_none()
+        if row is None:
+            row = NfcInventory(id=1, available=_nfc_initial_units())
+            db.session.add(row)
+            db.session.flush()
+        before = row.available
+        after = before + delta
+        if after < 0 or after > 500:
+            db.session.rollback()
+            return {"error": "Ajuste excede o estoque disponível ou limite permitido."}, 409
+        row.available = after
+        db.session.add(NfcStockMovement(
+            id=movement_id, delta=delta,
+            available_before=before, available_after=after,
+            actor=actor.strip(), reason=reason.strip()))
+        db.session.commit()
+        return {"ok": True, "available": after}, 200, {"Cache-Control": "no-store, private"}
+    except IntegrityError:
+        db.session.rollback()
+        return {"error": "Ajuste concorrente; atualize o estoque antes de tentar novamente."}, 409
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Falha interna no ajuste de estoque NFC")
+        return {"error": "Estoque indisponível. Nenhuma confirmação de ajuste."}, 503
 
 
 @app.route("/health")
