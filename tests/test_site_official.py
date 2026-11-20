@@ -48,6 +48,14 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIsNotNone(match, "Checkout nonce missing")
         return match.group(1)
 
+    def nfc_shipping(self):
+        return {
+            "nfc_delivery_region": "local", "nfc_cep": "66035000",
+            "nfc_city": "Belém", "nfc_state": "PA",
+            "nfc_street": "Rua das Flores", "nfc_number": "120",
+            "nfc_neighborhood": "Nazaré", "nfc_complement": "Sala 2"
+        }
+
     def lead_data(self, csrf=None):
         return {
             "csrf_token": csrf if csrf is not None else self.csrf(),
@@ -411,7 +419,7 @@ class OfficialSiteTests(unittest.TestCase):
                 response = self.client.post("/comprar/nfc", data={
                     "csrf_token": token, "checkout_intent": self.checkout_nonce(page),
                     "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
-                    "quantity": "2", "nfc_local_delivery": "yes",
+                    "quantity": "2", "nfc_local_delivery": "yes", **self.nfc_shipping(),
                     "consentimento": "yes", "termos": "yes",
                 })
         self.assertEqual(response.status_code, 302)
@@ -441,7 +449,7 @@ class OfficialSiteTests(unittest.TestCase):
                 token = sess["checkout_csrf"]
             payload = {"csrf_token": token, "checkout_intent": self.checkout_nonce(page),
                        "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
-                       "quantity": "7", "nfc_local_delivery": "yes",
+                       "quantity": "7", "nfc_local_delivery": "yes", **self.nfc_shipping(),
                        "consentimento": "yes", "termos": "yes"}
             with patch("app._mp_request", side_effect=mock_gateway):
                 first = self.client.post("/comprar/nfc", data=payload)
@@ -494,7 +502,7 @@ class OfficialSiteTests(unittest.TestCase):
                         "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
                         "whatsapp": "(91) 98273-6418", "quantity": quantity,
                         "price": "1", "total_cents": "1",
-                        "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
+                        "nfc_local_delivery": "yes", **self.nfc_shipping(), "consentimento": "yes", "termos": "yes",
                     })
                     self.assertEqual(response.status_code, 422)
                     self.assertIn('value="Cliente Exemplo"', response.get_data(as_text=True))
@@ -508,7 +516,7 @@ class OfficialSiteTests(unittest.TestCase):
                     "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
                     "whatsapp": "(91) 98273-6418", "quantity": "3",
                     "price": "1", "total_cents": "1",
-                    "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
+                    "nfc_local_delivery": "yes", **self.nfc_shipping(), "consentimento": "yes", "termos": "yes",
                 })
             self.assertEqual(success.status_code, 303)
             self.assertEqual(len(payloads), 1)
@@ -519,6 +527,9 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(order.total_cents, 23997)
                 self.assertEqual(order.quantity, 3)
                 self.assertEqual(NfcInventory.query.one().available, 5)
+                from app import NfcDeliveryAddress
+                self.assertEqual(NfcDeliveryAddress.query.one().cep, "66035000")
+                self.assertEqual(NfcDeliveryAddress.query.one().city, "Belém")
 
     def test_private_stock_api_blocks_unauthorized_and_audits_valid_adjustments(self):
         from app import NfcStockMovement
@@ -556,6 +567,56 @@ class OfficialSiteTests(unittest.TestCase):
         with app.app_context():
             self.assertEqual(CheckoutOrder.query.count(), 0)
 
+    def test_nfc_nationwide_request_cannot_charge_unquoted_freight(self):
+        from app import CheckoutOrder
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-only",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "8", "RAILWAY_ENVIRONMENT": "production",
+        }
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                csrf = sess["checkout_csrf"]
+            payload = {
+                "csrf_token": csrf, "checkout_intent": self.checkout_nonce(page),
+                "nome": "Cliente Frete", "whatsapp": "(91) 98273-6418",
+                "quantity": "2", "consentimento": "yes", "termos": "yes",
+                "nfc_local_delivery": "yes", **self.nfc_shipping(),
+                "nfc_delivery_region": "national", "nfc_city": "São Paulo",
+                "nfc_state": "SP", "nfc_cep": "01310930"
+            }
+            with patch("app._mp_request", side_effect=AssertionError("Never charge without frete")):
+                response = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(response.status_code, 422)
+            self.assertIn("cotação prévia de frete", response.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.count(), 0)
+
+    def test_nfc_local_missing_address_preserves_form_without_order(self):
+        with patch.dict(os.environ, {
+            "GTECH_NFC_SALES_ENABLED": "true", "GTECH_NFC_INITIAL_STOCK": "8"
+        }), patch("app._checkout_enabled", return_value=True), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                csrf = sess["checkout_csrf"]
+            result = self.client.post("/comprar/nfc", data={
+                "csrf_token": csrf, "checkout_intent": self.checkout_nonce(page),
+                "nome": "Maria Silva", "whatsapp": "(91) 98273-6418", "quantity": "1",
+                "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
+                "nfc_delivery_region": "local", "nfc_cep": "123",
+                "nfc_city": "Belém", "nfc_state": "PA",
+            })
+            self.assertEqual(result.status_code, 422)
+            text = result.get_data(as_text=True)
+            self.assertIn('value="Maria Silva"', text)
+            self.assertIn("Informe um CEP", text)
+            self.assertIn("logradouro", text)
+
     def test_nfc_sale_is_locked_when_stock_not_verified(self):
         from app import CheckoutOrder
         with patch.dict(os.environ, {"GTECH_NFC_INITIAL_STOCK": "",
@@ -578,7 +639,7 @@ class OfficialSiteTests(unittest.TestCase):
             resp = self.client.post("/comprar/nfc", data={
                 "csrf_token": token, "checkout_intent": self.checkout_nonce(page), "nome": "Comprador Exemplo",
                 "whatsapp": "(91) 98273-6418", "quantity": "2",
-                "consentimento": "yes", "termos": "yes"})
+                **self.nfc_shipping(), "consentimento": "yes", "termos": "yes"})
             self.assertEqual(resp.status_code, 422)
             self.assertIn("Confirme que a entrega", resp.get_data(as_text=True))
 
