@@ -1495,6 +1495,10 @@ def _nfc_operational_priority(order, fulfillment, now):
     elapsed = (now - order.created_at).total_seconds()
     if p in {"charged_back", "refunded", "in_mediation"}:
         return "urgent", "Bloqueio financeiro: revisão obrigatória"
+    if fulfillment and fulfillment.status == "archived_test":
+        if p == "approved":
+            return "urgent", "Pedido de teste arquivado recebeu pagamento: verificar imediatamente"
+        return "archived", "Teste arquivado pela administração; reserva mantida para conciliação"
     if p in {"pending", "authorized", "in_process"} and elapsed >= 24 * 3600:
         return "urgent", "Pagamento sem confirmação há mais de 24 horas"
     if fulfillment and fulfillment.status == "delivered":
@@ -1610,7 +1614,8 @@ def internal_nfc_stock():
 
 
 _NFC_FULFILLMENT_TRANSITIONS = {
-    "not_started": {"preparing", "on_hold"},
+    "not_started": {"preparing", "on_hold", "archived_test"},
+    "archived_test": {"not_started"},
     "preparing": {"ready", "on_hold"},
     "ready": {"out_for_delivery", "on_hold"},
     "out_for_delivery": {"delivered", "on_hold"},
@@ -1683,6 +1688,17 @@ def internal_nfc_fulfillment(order_id):
         if new_status != old_status and new_status not in _NFC_FULFILLMENT_TRANSITIONS.get(old_status, set()):
             db.session.rollback()
             return {"error": "Transição de entrega inválida."}, 409
+        if new_status == "archived_test" and new_status != old_status:
+            # Archiving is a CRM view operation, NOT a refund, cancellation or
+            # stock release. Only an unfulfilled, non-paid order may be archived.
+            has_approved_receipt = (CheckoutPaymentDelivery.query.filter_by(
+                order_id=order.id, status="approved").first() is not None)
+            if order.status not in {"pending", "rejected", "cancelled"} or has_approved_receipt:
+                db.session.rollback()
+                return {"error": "Há recebimento confirmado ou pagamento não conciliado. Teste não pode ser arquivado."}, 409
+            if old_status != "not_started":
+                db.session.rollback()
+                return {"error": "Pedido com logística iniciada não pode ser arquivado."}, 409
         if (new_status != old_status and new_status in {"preparing", "ready", "out_for_delivery", "delivered"}
                 and order.status != "approved"):
             db.session.rollback()
@@ -1691,6 +1707,9 @@ def internal_nfc_fulfillment(order_id):
                 and db.session.get(NfcDeliveryAddress, order.id) is None):
             db.session.rollback()
             return {"error": "Endereço ausente; entre em contato com o comprador."}, 409
+        if new_status == "archived_test" and (new_priority != "normal" or new_ref):
+            db.session.rollback()
+            return {"error": "Arquivamento de teste não pode manter prioridade ou referência de entrega."}, 422
         if new_status in {"out_for_delivery", "delivered"} and len(new_ref) < 4:
             db.session.rollback()
             return {"error": "Informe a referência do entregador ou rastreamento."}, 422
