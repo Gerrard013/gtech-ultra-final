@@ -751,6 +751,29 @@ class OfficialSiteTests(unittest.TestCase):
             with app.app_context():
                 self.assertEqual(NfcStockMovement.query.count(), 1)
 
+    def test_nfc_snapshot_reports_total_even_when_queue_is_limited_to_100(self):
+        from app import CheckoutOrder
+        import uuid
+        secret = "ci-nfc-queue-only-secret-123456789012345"
+        with patch.dict(os.environ, {"GTECH_NFC_STOCK_SECRET": secret,
+                                     "GTECH_NFC_INITIAL_STOCK": "8"}):
+            with app.app_context():
+                lead = Lead(nome="Cliente Sintético", whatsapp="91982736418",
+                            negocio="Somente testes", servico="Placa NFC Personalizada",
+                            prazo="Teste", objetivo="Auditar visibilidade da fila")
+                db.session.add(lead)
+                db.session.flush()
+                for _ in range(101):
+                    db.session.add(CheckoutOrder(id=str(uuid.uuid4()), lead_id=lead.id,
+                        sku="nfc", quantity=1, total_cents=7999, status="pending"))
+                db.session.commit()
+            result = self.client.get("/internal/nfc/stock",
+                headers={"X-GTech-NFC-Key": secret})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["totalOrders"], 101)
+            self.assertEqual(len(result.json["orders"]), 100)
+            self.assertGreater(result.json["totalOrders"], len(result.json["orders"]))
+
     def test_nfc_fallback_allows_quantity_inquiry_without_charging(self):
         from app import CheckoutOrder
         page = self.client.get("/comprar/nfc")
