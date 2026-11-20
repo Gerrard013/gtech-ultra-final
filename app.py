@@ -1096,7 +1096,7 @@ def checkout_product(sku: str):
     delivery_confirmed = request.form.get("nfc_local_delivery") == "yes"
     region = clean_text(request.form.get("nfc_delivery_region"), 16) or "local"
     address = {
-        "cep": re.sub(r"\\D", "", request.form.get("nfc_cep", "")),
+        "cep": re.sub(r"\D", "", request.form.get("nfc_cep", "")),
         "city": clean_text(request.form.get("nfc_city"), 90),
         "state": clean_text(request.form.get("nfc_state"), 2).upper(),
         "street": clean_text(request.form.get("nfc_street"), 160),
