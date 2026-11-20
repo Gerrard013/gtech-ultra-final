@@ -531,6 +531,20 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(NfcDeliveryAddress.query.one().cep, "66035000")
                 self.assertEqual(NfcDeliveryAddress.query.one().city, "Belém")
 
+    def test_private_stock_api_supports_domain_separated_existing_crm_secret(self):
+        import hmac
+        import hashlib
+        master = "this-is-a-test-only-integration-secret-not-prod"
+        key = hmac.new(master.encode(), b"gtech-nfc-inventory-v1", hashlib.sha256).hexdigest()
+        with patch.dict(os.environ, {"GTECH_NFC_STOCK_SECRET": "",
+                                     "GTECH_SITE_LEAD_SECRET": master,
+                                     "GTECH_NFC_INITIAL_STOCK": "8"}):
+            resp = self.client.get("/internal/nfc/stock", headers={"X-GTech-NFC-Key": key})
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.json["available"], 8)
+            self.assertEqual(self.client.get("/internal/nfc/stock",
+                headers={"X-GTech-NFC-Key": master}).status_code, 403)
+
     def test_private_stock_api_blocks_unauthorized_and_audits_valid_adjustments(self):
         from app import NfcStockMovement
         import uuid
