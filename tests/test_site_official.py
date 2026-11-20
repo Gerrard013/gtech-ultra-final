@@ -773,6 +773,7 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(result.json["checkoutEnabled"], False)
             self.assertEqual(result.json["nfcSalesEnabled"], False)
             self.assertEqual(result.json["crmPaymentSyncEnabled"], False)
+            self.assertEqual(result.json["pendingLeadSync"], 0)
             self.assertEqual(result.json["pendingPaymentSync"], 0)
             self.assertEqual(result.json["totalNfcOrders"], 0)
             self.assertEqual(result.headers.get("Cache-Control"), "no-store, private")
