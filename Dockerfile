@@ -14,4 +14,10 @@ RUN python -m pip install --upgrade pip setuptools wheel && \
 
 COPY . .
 
+# Run the public web process as a dedicated non-root user.
+RUN groupadd --system gtech && useradd --system --gid gtech --home-dir /app gtech \
+    && mkdir -p /app/instance \
+    && chown -R gtech:gtech /app
+USER gtech
+
 CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --timeout 120 --bind 0.0.0.0:${PORT:-8080} app:app"]
