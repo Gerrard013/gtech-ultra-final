@@ -223,6 +223,8 @@ class NfcFulfillmentEvent(db.Model):
     old_priority = db.Column(db.String(12), nullable=False)
     new_priority = db.Column(db.String(12), nullable=False)
     note = db.Column(db.String(240), nullable=False)
+    old_delivery_reference = db.Column(db.String(120), nullable=True)
+    new_delivery_reference = db.Column(db.String(120), nullable=True)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
@@ -497,7 +499,9 @@ def _reconcile_mercadopago_payment(payment_id: str, *, order_id: str = "") -> bo
     db.session.flush()
     payment_statuses = {p.status for p in CheckoutPaymentDelivery.query.filter_by(order_id=pid).all()}
     # A rejected retry must not overwrite another successful payment for the order.
-    order.status = next((s for s in ("approved", "in_mediation", "charged_back", "refunded", "in_process", "authorized", "pending", "rejected", "cancelled")
+    # Any chargeback, mediation or refund overrides an older approved payment.
+    # Hold shipment for human reconciliation instead of silently keeping approved.
+    order.status = next((s for s in ("charged_back", "in_mediation", "refunded", "approved", "in_process", "authorized", "pending", "rejected", "cancelled")
                          if s in payment_statuses), status)
     db.session.commit()
     sync_payment_to_crm(str(payment_id))
@@ -1493,6 +1497,10 @@ def _nfc_operational_priority(order, fulfillment, now):
         return "urgent", "Bloqueio financeiro: revisão obrigatória"
     if p in {"pending", "authorized", "in_process"} and elapsed >= 24 * 3600:
         return "urgent", "Pagamento sem confirmação há mais de 24 horas"
+    if fulfillment and fulfillment.status == "delivered":
+        return "done", "Entrega registrada como concluída"
+    if fulfillment and fulfillment.status == "on_hold":
+        return "urgent", "Entrega em revisão pela equipe"
     if p == "approved" and (not fulfillment or fulfillment.status != "delivered"):
         return ("urgent" if fulfillment and fulfillment.priority == "urgent" else "high",
                 "Pagamento confirmado: preparar ou acompanhar entrega")
@@ -1649,6 +1657,7 @@ def internal_nfc_fulfillment(order_id):
             db.session.add(f)
             db.session.flush()
         old_status, old_priority = f.status, f.priority
+        old_ref = f.delivery_reference
         new_status = status if status is not None else old_status
         new_priority = priority if priority is not None else old_priority
         new_ref = ref.strip() if isinstance(ref, str) else (f.delivery_reference or "")
@@ -1659,6 +1668,10 @@ def internal_nfc_fulfillment(order_id):
                 and order.status != "approved"):
             db.session.rollback()
             return {"error": "Pagamento não confirmado. Envio bloqueado."}, 409
+        if (new_status != old_status and new_status in {"preparing", "ready", "out_for_delivery", "delivered"}
+                and db.session.get(NfcDeliveryAddress, order.id) is None):
+            db.session.rollback()
+            return {"error": "Endereço ausente; entre em contato com o comprador."}, 409
         if new_status in {"out_for_delivery", "delivered"} and len(new_ref) < 4:
             db.session.rollback()
             return {"error": "Informe a referência do entregador ou rastreamento."}, 422
@@ -1673,6 +1686,8 @@ def internal_nfc_fulfillment(order_id):
             id=action_id, order_id=order.id, actor=actor.strip(),
             old_status=old_status, new_status=new_status,
             old_priority=old_priority, new_priority=new_priority,
+            old_delivery_reference=old_ref,
+            new_delivery_reference=new_ref or None,
             note=note.strip()))
         db.session.commit()
         return {"ok": True, "status": f.status, "priority": f.priority}, 200, {"Cache-Control": "no-store"}
