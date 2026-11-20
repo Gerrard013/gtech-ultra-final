@@ -751,6 +751,36 @@ class OfficialSiteTests(unittest.TestCase):
             with app.app_context():
                 self.assertEqual(NfcStockMovement.query.count(), 1)
 
+    def test_private_conformity_health_never_leaks_gateway_or_client_secrets(self):
+        secret = "ci-site-nfc-health-secret-123456789012345"
+        with patch.dict(os.environ, {
+            "GTECH_NFC_STOCK_SECRET": secret,
+            "CRM_PAYMENT_SYNC_ENABLED": "false",
+            "CRM_LEAD_SYNC_ENABLED": "false",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-CI-SYNTHETIC-NOT-REAL",
+            "MERCADOPAGO_WEBHOOK_SECRET": "ci-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "987654321",
+            "MERCADOPAGO_CNPJ_VERIFIED": "false",
+            "GTECH_CHECKOUT_ENABLED": "false",
+        }):
+            self.assertEqual(self.client.get("/internal/nfc/health").status_code, 403)
+            self.assertEqual(self.client.get("/internal/nfc/health",
+                headers={"X-GTech-NFC-Key": "wrong"}).status_code, 403)
+            result = self.client.get("/internal/nfc/health",
+                headers={"X-GTech-NFC-Key": secret})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["contractVersion"], 1)
+            self.assertEqual(result.json["checkoutEnabled"], False)
+            self.assertEqual(result.json["nfcSalesEnabled"], False)
+            self.assertEqual(result.json["crmPaymentSyncEnabled"], False)
+            self.assertEqual(result.json["pendingPaymentSync"], 0)
+            self.assertEqual(result.json["totalNfcOrders"], 0)
+            self.assertEqual(result.headers.get("Cache-Control"), "no-store, private")
+            raw = result.get_data(as_text=True)
+            for forbidden in [secret, "APP_USR-CI", "987654321", "nome", "whatsapp",
+                              "Authorization", "MERCADOPAGO_ACCESS_TOKEN"]:
+                self.assertNotIn(forbidden, raw)
+
     def test_nfc_snapshot_reports_total_even_when_queue_is_limited_to_100(self):
         from app import CheckoutOrder
         import uuid
