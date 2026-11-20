@@ -70,6 +70,15 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIn('name="termos"', html)
         self.assertIn("/termos", html)
 
+    def test_home_branded_intro_precedes_hero_media(self):
+        page = self.client.get("/")
+        html = page.get_data(as_text=True)
+        self.assertIn('id="gtech-intro-start"', html)
+        self.assertLess(html.index('id="gtech-intro-start"'), html.index('id="showcase-video"'))
+        self.assertIn('id="gtech-intro-template"', html)
+        self.assertNotIn('id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay', html)
+        self.assertIn("20261119-intro-first", html)
+
     def test_contact_form_saves_local_lead_without_payment(self):
         data = self.lead_data()
         with patch("urllib.request.urlopen", side_effect=AssertionError("Network used")):
