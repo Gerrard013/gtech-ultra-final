@@ -65,7 +65,7 @@
 {% endfor %}
 </div>
 <a class="btn btn-solid" id="nfc-nationwide-quote" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer" hidden>Solicitar frete e link de pagamento ↗</a>
-<label class="consent" id="nfc-local-confirmation"><input type="checkbox" name="nfc_local_delivery" value="yes" required {% if (form_values or {}).get('nfc_local_delivery') %}checked{% endif %}><span>Confirmo entrega em Belém/PA e entendo que o endereço e o prazo serão combinados pelo WhatsApp antes do envio.</span></label>
+<label class="consent" id="nfc-local-confirmation"><input type="checkbox" name="nfc_local_delivery" value="yes" required {% if (form_values or {}).get('nfc_local_delivery') %}checked{% endif %}><span>Confirmo que meu endereço de entrega foi registrado neste pedido e será encaminhado à equipe da G Tech. O andamento será acompanhado no sistema, com contato pelo WhatsApp quando necessário.</span></label>
 <small class="field-error" role="alert" {% if not (form_errors or {}).get('nfc_local_delivery') %}hidden{% endif %}>{{ (form_errors or {}).get('nfc_local_delivery','') }}</small>
 {% endif %}
 <label class="consent"><input type="checkbox" name="consentimento" value="yes" required {% if (form_values or {}).get('consentimento') %}checked{% endif %}><span>Autorizo o uso dos meus dados para este pedido e atendimento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não é autorização para campanhas.</span></label>
