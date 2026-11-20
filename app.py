@@ -614,7 +614,7 @@ def excessive_lead_submissions(ip: str) -> bool:
 
 
 @app.route("/")
-def index():
+def index(*, form_values=None, form_errors=None):
     if "lead_csrf" not in session:
         session["lead_csrf"] = secrets.token_urlsafe(32)
     return render_template(
@@ -622,6 +622,8 @@ def index():
         public_site_url=PUBLIC_SITE_URL,
         contacts=CONTACTS,
         services=SERVICES,
+        form_values=form_values or {},
+        form_errors=form_errors or {},
         checkout_offers=CHECKOUT_OFFERS,
         checkout_enabled=_checkout_enabled() or os.getenv("RAILWAY_ENVIRONMENT", "").strip().lower() == "preview",
         feedbacks=FEEDBACKS,
@@ -859,21 +861,29 @@ def create_lead():
     origem = clean_text(request.form.get("origem"), 180)
     cidade = clean_text(request.form.get("cidade"), 100)
 
-    required = [nome, whatsapp, servico, objetivo]
-    if len(nome) < 2 or len(objetivo) < 10:
-        flash("Informe seu nome e descreva brevemente sua necessidade.", "error")
-        return redirect(url_for("index") + "#contato")
     allowed_services = {item["form_value"] for item in SERVICES} | {"Outro serviço"}
     allowed_deadlines = {
         "O mais rápido possível", "Em até 7 dias", "Em até 30 dias", "Estou pesquisando"
     }
-    if not all(required) or servico not in allowed_services or prazo not in allowed_deadlines:
-        flash("Revise os campos obrigatórios antes de enviar.", "error")
-        return redirect(url_for("index") + "#contato")
-
+    field_errors = {}
+    if len(nome) < 2:
+        field_errors["nome"] = "Informe seu nome com pelo menos 2 caracteres."
     if not valid_phone(whatsapp):
-        flash("Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo.", "error")
-        return redirect(url_for("index") + "#contato")
+        field_errors["whatsapp"] = "Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo."
+    if servico not in allowed_services:
+        field_errors["servico"] = "Escolha um serviço válido."
+    if len(objetivo) < 10:
+        field_errors["objetivo"] = "Descreva sua necessidade com pelo menos 10 caracteres."
+    if prazo not in allowed_deadlines:
+        field_errors["servico"] = "Revise as informações do serviço."
+    if field_errors:
+        # Render the same request with a 422. No personal data is stored in
+        # the browser session, database or URL while the form is invalid.
+        return index(form_values={
+            "nome": nome, "whatsapp": whatsapp, "negocio": clean_text(request.form.get("negocio"), 180),
+            "cidade": cidade, "servico": servico, "objetivo": objetivo,
+            "consentimento": True, "termos": True
+        }, form_errors=field_errors), 422
 
     lead = Lead(
         nome=nome,
@@ -923,9 +933,20 @@ def checkout_product(sku: str):
 
     name = clean_text(request.form.get("nome"), 100)
     phone = clean_text(request.form.get("whatsapp"), 40)
-    if len(name) < 2 or not valid_phone(phone):
-        flash("Confira seu nome e celular com DDD.", "error")
-        return redirect(url_for("checkout_product", sku=sku))
+    field_errors = {}
+    if len(name) < 2:
+        field_errors["nome"] = "Informe seu nome com pelo menos 2 caracteres."
+    if not valid_phone(phone):
+        field_errors["whatsapp"] = "Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo."
+    if field_errors:
+        return render_template(
+            "comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
+            csrf_token=session["checkout_csrf"], preview_only=preview_only,
+            checkout_enabled=checkout_enabled,
+            form_values={"nome": name, "whatsapp": phone,
+                         "consentimento": True, "termos": True},
+            form_errors=field_errors,
+        ), 422
 
     lead = Lead(
         nome=name, whatsapp=normalize_mobile(phone) or phone, negocio="Cliente de checkout",
