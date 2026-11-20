@@ -202,6 +202,30 @@ class NfcDeliveryAddress(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
 
+class NfcFulfillment(db.Model):
+    """Operational delivery state, independent from authenticated payment status."""
+    __tablename__ = "gtech_nfc_fulfillments"
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), primary_key=True)
+    status = db.Column(db.String(32), nullable=False, default="not_started")
+    priority = db.Column(db.String(12), nullable=False, default="normal")
+    delivery_reference = db.Column(db.String(120), nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class NfcFulfillmentEvent(db.Model):
+    """Immutable audit trail with idempotent operation identifiers."""
+    __tablename__ = "gtech_nfc_fulfillment_events"
+    id = db.Column(db.String(36), primary_key=True)
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), nullable=False, index=True)
+    actor = db.Column(db.String(100), nullable=False)
+    old_status = db.Column(db.String(32), nullable=False)
+    new_status = db.Column(db.String(32), nullable=False)
+    old_priority = db.Column(db.String(12), nullable=False)
+    new_priority = db.Column(db.String(12), nullable=False)
+    note = db.Column(db.String(240), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class NfcStockUnavailable(Exception):
     """There is no confirmed inventory to reserve for this purchase."""
 
@@ -1449,34 +1473,72 @@ def sitemap():
     return Response(content, mimetype="application/xml")
 
 
-@app.route("/internal/nfc/stock", methods=["GET", "POST"])
-def internal_nfc_stock():
-    """Private CRM proxy endpoint: never accessible without a shared S2S secret."""
+def _authorize_internal_nfc():
+    """Single S2S authentication for stock and delivery endpoints."""
     secret = os.getenv("GTECH_NFC_STOCK_SECRET", "").strip()
     if len(secret) < 32:
-        # Domain-separated key from existing site-to-CRM integration;
-        # never reuse the raw lead-capture HMAC key as an HTTP token.
         master = os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()
         secret = (hmac.new(master.encode(), b"gtech-nfc-inventory-v1",
                            hashlib.sha256).hexdigest() if len(master) >= 32 else "")
     supplied = request.headers.get("X-GTech-NFC-Key", "")
     if len(secret) < 32 or not hmac.compare_digest(supplied, secret):
         abort(403)
+
+
+def _nfc_operational_priority(order, fulfillment, now):
+    """Payment risks outrank manual priorities; unpaid orders must not ship."""
+    p = order.status
+    elapsed = (now - order.created_at).total_seconds()
+    if p in {"charged_back", "refunded", "in_mediation"}:
+        return "urgent", "Bloqueio financeiro: revisão obrigatória"
+    if p in {"pending", "authorized", "in_process"} and elapsed >= 24 * 3600:
+        return "urgent", "Pagamento sem confirmação há mais de 24 horas"
+    if p == "approved" and (not fulfillment or fulfillment.status != "delivered"):
+        return ("urgent" if fulfillment and fulfillment.priority == "urgent" else "high",
+                "Pagamento confirmado: preparar ou acompanhar entrega")
+    if fulfillment and fulfillment.priority == "urgent":
+        return "urgent", "Prioridade definida pela administração"
+    if fulfillment and fulfillment.priority == "high":
+        return "high", "Prioridade definida pela administração"
+    if p in {"cancelled", "rejected"}:
+        return "review", "Pedido encerrado ou recusado; conferir reserva de estoque"
+    return "waiting", "Aguardando confirmação de pagamento"
+
+
+@app.route("/internal/nfc/stock", methods=["GET", "POST"])
+def internal_nfc_stock():
+    """Private CRM proxy endpoint; no unauthenticated order or address access."""
+    _authorize_internal_nfc()
     if not _secure_db_available() and _deployed:
         abort(503)
     if request.method == "GET":
         history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
         # Full addresses are only sent over the private S2S channel to CEO/ADMIN CRM.
-        recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(25).all()
+        recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(100).all()
+        refs = [o.id for o in recent]
+        addresses = {a.order_id: a for a in NfcDeliveryAddress.query.filter(NfcDeliveryAddress.order_id.in_(refs)).all()} if refs else {}
+        fulfillment = {f.order_id: f for f in NfcFulfillment.query.filter(NfcFulfillment.order_id.in_(refs)).all()} if refs else {}
+        leads = {l.id: l for l in Lead.query.filter(Lead.id.in_([o.lead_id for o in recent])).all()} if recent else {}
+        now = datetime.utcnow()
         orders = []
         for item in recent:
-            addr = db.session.get(NfcDeliveryAddress, item.id)
-            lead = db.session.get(Lead, item.lead_id)
+            addr = addresses.get(item.id)
+            lead = leads.get(item.lead_id)
+            f = fulfillment.get(item.id)
+            operational_priority, operational_reason = _nfc_operational_priority(item, f, now)
             orders.append({
                 "id": item.id, "status": item.status, "quantity": item.quantity,
                 "totalCents": item.total_cents,
                 "buyer": lead.nome if lead else "", "phone": lead.whatsapp if lead else "",
                 "createdAt": item.created_at.isoformat() + "Z",
+                "operationalPriority": operational_priority,
+                "operationalReason": operational_reason,
+                "fulfillment": {
+                    "status": f.status if f else "not_started",
+                    "priority": f.priority if f else "normal",
+                    "deliveryReference": (f.delivery_reference or "") if f else "",
+                    "updatedAt": f.updated_at.isoformat() + "Z" if f else None
+                },
                 "address": {
                     "cep": addr.cep, "state": addr.state, "city": addr.city,
                     "neighborhood": addr.neighborhood, "street": addr.street,
@@ -1537,6 +1599,92 @@ def internal_nfc_stock():
         db.session.rollback()
         app.logger.exception("Falha interna no ajuste de estoque NFC")
         return {"error": "Estoque indisponível. Nenhuma confirmação de ajuste."}, 503
+
+
+_NFC_FULFILLMENT_TRANSITIONS = {
+    "not_started": {"preparing", "on_hold"},
+    "preparing": {"ready", "on_hold"},
+    "ready": {"out_for_delivery", "on_hold"},
+    "out_for_delivery": {"delivered", "on_hold"},
+    "on_hold": {"preparing"},
+    "delivered": set(),
+}
+
+
+@app.post("/internal/nfc/fulfillment/<order_id>")
+def internal_nfc_fulfillment(order_id):
+    """S2S delivery updates; payment and stock remain separate and authoritative."""
+    _authorize_internal_nfc()
+    if not _secure_db_available() and _deployed:
+        abort(503)
+    if not re.fullmatch(r"[a-f0-9-]{36}", order_id):
+        abort(404)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return {"error": "Dados inválidos."}, 400
+    allowed_fields = {"actionId", "status", "priority", "note", "deliveryReference", "actor"}
+    if set(data) - allowed_fields:
+        return {"error": "Campos não reconhecidos."}, 400
+    action_id, actor, note = data.get("actionId"), data.get("actor"), data.get("note")
+    status, priority, ref = data.get("status"), data.get("priority"), data.get("deliveryReference")
+    if (not isinstance(action_id, str) or not re.fullmatch(r"[a-f0-9-]{36}", action_id)
+            or not isinstance(actor, str) or not 2 <= len(actor.strip()) <= 100
+            or not isinstance(note, str) or not 8 <= len(note.strip()) <= 240
+            or (status is not None and (not isinstance(status, str) or status not in _NFC_FULFILLMENT_TRANSITIONS))
+            or (priority is not None and (not isinstance(priority, str) or priority not in {"normal", "high", "urgent"}))
+            or (ref is not None and (not isinstance(ref, str) or len(ref.strip()) > 120))):
+        return {"error": "Informe etapa, prioridade e justificativa válidas."}, 400
+    if status is None and priority is None and ref is None:
+        return {"error": "Nenhuma alteração solicitada."}, 400
+    try:
+        if db.session.get(NfcFulfillmentEvent, action_id):
+            return {"ok": True, "duplicate": True}, 200, {"Cache-Control": "no-store"}
+        order = CheckoutOrder.query.filter_by(id=order_id, sku="nfc").with_for_update().first()
+        if not order:
+            db.session.rollback()
+            return {"error": "Pedido não encontrado."}, 404
+        f = db.session.get(NfcFulfillment, order.id)
+        if f is None:
+            f = NfcFulfillment(order_id=order.id)
+            db.session.add(f)
+            db.session.flush()
+        old_status, old_priority = f.status, f.priority
+        new_status = status if status is not None else old_status
+        new_priority = priority if priority is not None else old_priority
+        new_ref = ref.strip() if isinstance(ref, str) else (f.delivery_reference or "")
+        if new_status != old_status and new_status not in _NFC_FULFILLMENT_TRANSITIONS.get(old_status, set()):
+            db.session.rollback()
+            return {"error": "Transição de entrega inválida."}, 409
+        if (new_status != old_status and new_status in {"preparing", "ready", "out_for_delivery", "delivered"}
+                and order.status != "approved"):
+            db.session.rollback()
+            return {"error": "Pagamento não confirmado. Envio bloqueado."}, 409
+        if new_status in {"out_for_delivery", "delivered"} and len(new_ref) < 4:
+            db.session.rollback()
+            return {"error": "Informe a referência do entregador ou rastreamento."}, 422
+        if (new_status, new_priority, new_ref) == (old_status, old_priority, f.delivery_reference or ""):
+            db.session.rollback()
+            return {"ok": True, "unchanged": True}, 200, {"Cache-Control": "no-store"}
+        f.status = new_status
+        f.priority = new_priority
+        f.delivery_reference = new_ref or None
+        f.updated_at = datetime.utcnow()
+        db.session.add(NfcFulfillmentEvent(
+            id=action_id, order_id=order.id, actor=actor.strip(),
+            old_status=old_status, new_status=new_status,
+            old_priority=old_priority, new_priority=new_priority,
+            note=note.strip()))
+        db.session.commit()
+        return {"ok": True, "status": f.status, "priority": f.priority}, 200, {"Cache-Control": "no-store"}
+    except IntegrityError:
+        db.session.rollback()
+        if db.session.get(NfcFulfillmentEvent, action_id):
+            return {"ok": True, "duplicate": True}, 200, {"Cache-Control": "no-store"}
+        return {"error": "Conflito simultâneo; atualize o pedido."}, 409
+    except Exception:
+        db.session.rollback()
+        app.logger.error("NFC delivery update failed (no PII logged)")
+        return {"error": "Não foi possível atualizar a entrega."}, 503
 
 
 @app.route("/health")
