@@ -34,6 +34,7 @@ from flask import (
 )
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 
@@ -150,11 +151,20 @@ class CheckoutOrder(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class CheckoutAttempt(db.Model):
+    """A signed checkout form nonce can create at most one order."""
+    __tablename__ = "gtech_checkout_attempts"
+    token_hash = db.Column(db.String(64), primary_key=True)
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), unique=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
 class NfcInventory(db.Model):
     """Physical NFC stock; decremented under a DB row lock before checkout."""
     __tablename__ = "gtech_nfc_inventory"
     id = db.Column(db.Integer, primary_key=True)
     available = db.Column(db.Integer, nullable=False, default=0)
+    __table_args__ = (db.CheckConstraint("available >= 0", name="ck_nfc_stock_nonnegative"),)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -251,12 +261,46 @@ def _parse_checkout_quantity(sku: str, raw: str | None) -> int | None:
     return count if 1 <= count <= max_quantity else None
 
 
+def _new_checkout_intent(sku: str) -> str:
+    if "checkout_identity" not in session:
+        session["checkout_identity"] = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    manifest = f"{session[\'checkout_identity\']}:{sku}:{nonce}"
+    signature = hmac.new(str(app.secret_key).encode(), manifest.encode(), hashlib.sha256).hexdigest()
+    return nonce + "." + signature
+
+
+def _valid_checkout_intent(sku: str, value: str) -> bool:
+    if not re.fullmatch(r"[A-Za-z0-9_-]{24,64}\\.[a-f0-9]{64}", value or ""):
+        return False
+    identity = session.get("checkout_identity", "")
+    if not identity:
+        return False
+    nonce, signature = value.rsplit(".", 1)
+    manifest = f"{identity}:{sku}:{nonce}"
+    expected = hmac.new(str(app.secret_key).encode(), manifest.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+
+def _previous_checkout_attempt(intent_hash: str):
+    attempt = db.session.get(CheckoutAttempt, intent_hash)
+    if attempt is None:
+        return None
+    order = db.session.get(CheckoutOrder, attempt.order_id)
+    if order is None:
+        return Response("Pedido em conferência. Entre em contato com a G Tech.", 409)
+    if order.checkout_url and _is_mercadopago_link(order.checkout_url):
+        return redirect(order.checkout_url, code=303)
+    return redirect(url_for("payment_result", order_id=order.id), code=303)
+
+
 def _checkout_form_error(sku, offer, preview_only, enabled, values, errors, csrf_token):
     return render_template(
         "comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
         csrf_token=csrf_token, preview_only=preview_only,
         checkout_enabled=enabled, form_values=values,
         form_errors=errors, nfc_available=_nfc_available_units() if sku == "nfc" else 0,
+        checkout_intent=values.get("checkout_intent", ""),
     ), 422, {"Cache-Control": "no-store, private"}
 
 
@@ -991,7 +1035,8 @@ def checkout_product(sku: str):
         return render_template("comprar.html", sku=sku, offer=offer, contacts=CONTACTS,
                                csrf_token=session["checkout_csrf"], preview_only=preview_only,
                                checkout_enabled=checkout_enabled,
-                               nfc_available=_nfc_available_units() if sku == "nfc" else 0)
+                               nfc_available=_nfc_available_units() if sku == "nfc" else 0,
+                               checkout_intent=_new_checkout_intent(sku))
 
     token = request.form.get("csrf_token", "")
     if not token or not secrets.compare_digest(token, session.get("checkout_csrf", "")):
@@ -1002,12 +1047,21 @@ def checkout_product(sku: str):
     if excessive_lead_submissions(request.remote_addr or "unknown"):
         return Response("Muitas tentativas. Tente novamente mais tarde.", status=429)
 
+    intent = clean_text(request.form.get("checkout_intent"), 200)
+    if not _valid_checkout_intent(sku, intent):
+        abort(400)
+    intent_hash = hashlib.sha256(intent.encode()).hexdigest()
+    existing_attempt = _previous_checkout_attempt(intent_hash)
+    if existing_attempt is not None:
+        return existing_attempt
+
     name = clean_text(request.form.get("nome"), 100)
     phone = clean_text(request.form.get("whatsapp"), 40)
     quantity = _parse_checkout_quantity(sku, request.form.get("quantity"))
     delivery_confirmed = request.form.get("nfc_local_delivery") == "yes"
     values = {"nome": name, "whatsapp": phone,
               "quantity": request.form.get("quantity", "1"),
+              "checkout_intent": intent,
               "nfc_local_delivery": delivery_confirmed,
               "consentimento": True, "termos": True}
     field_errors = {}
@@ -1035,6 +1089,7 @@ def checkout_product(sku: str):
         total_cents=offer["cents"] * quantity, status="pending"
     )
     stock_reserved = False
+    persisted = False
     try:
         db.session.add(lead)
         db.session.flush()
@@ -1053,14 +1108,23 @@ def checkout_product(sku: str):
             inventory.available -= quantity
         order.lead_id = lead.id
         db.session.add(order)
+        db.session.add(CheckoutAttempt(token_hash=intent_hash, order_id=order.id))
         db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", privacy_version="2026-11-16", terms_version="2026-11-16"))
         db.session.commit()
+        persisted = True
         stock_reserved = sku == "nfc"
         gateway_url = _create_mercadopago_preference(order, offer["title"])
         order.checkout_url = gateway_url
         db.session.commit()
         session["last_checkout_order"] = order.id
         return redirect(gateway_url, code=303)
+    except IntegrityError:
+        db.session.rollback()
+        old = _previous_checkout_attempt(intent_hash)
+        if old is not None:
+            return old
+        app.logger.warning("NFC/checkout: conflict while reserving inventory or nonce")
+        return Response("Não foi possível confirmar o pedido. Tente novamente.", 409)
     except NfcStockUnavailable:
         db.session.rollback()
         return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
@@ -1082,6 +1146,8 @@ def checkout_product(sku: str):
                 db.session.rollback()
                 app.logger.error("NFC inventory reservation needs manual review; order %s", order.id)
         # Never show a payment as successful after a gateway error.
+        if not persisted:
+            return Response("Não foi possível registrar o pedido. Tente novamente.", 503)
         return redirect(url_for("payment_result", order_id=order.id))
 
 
