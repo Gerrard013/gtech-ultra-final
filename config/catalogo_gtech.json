@@ -1,13 +1,14 @@
 {
-  "aviso": "Catálogo base G Tech (16/11/2026). Atualizar após confirmação de preço e condições. Valores em centavos; não ajustar apenas textos.",
+  "aviso": "Catálogo G Tech: valor em centavos; estoque NFC persistido no servidor, não informado pelo navegador.",
   "moeda": "BRL",
   "produtos": {
     "nfc": {
       "titulo": "Plaquinha NFC personalizada",
       "preco_centavos": 7999,
       "preco_exibicao": "R$ 79,99",
-      "checkout_direto": false,
-      "observacao": "Configuração incluída. Confirmar entrega, frete e estoque antes de cobrar."
+      "checkout_direto": true,
+      "observacao": "R$ 79,99 por unidade, configuração incluída. Compra online condicionada a estoque confirmado e entrega em Belém/PA; endereço combinado por WhatsApp.",
+      "quantidade_maxima_pedido": 8
     },
     "site": {
       "titulo": "Criação de site profissional",
