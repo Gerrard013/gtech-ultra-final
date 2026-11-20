@@ -527,6 +527,11 @@ class OfficialSiteTests(unittest.TestCase):
             valid={**invalid,"actionId":str(uuid.uuid4()),"deliveryReference":"Moto: operador 7"}
             self.assertEqual(self.client.post("/internal/nfc/fulfillment/"+order_id,
                 headers=headers,json=valid).status_code,200)
+            history=self.client.get("/internal/nfc/fulfillment/"+order_id,headers=headers)
+            self.assertEqual(history.status_code,200)
+            self.assertEqual(history.json["status"],"out_for_delivery")
+            self.assertEqual(len(history.json["history"]),3)
+            self.assertEqual(self.client.get("/internal/nfc/fulfillment/"+order_id).status_code,403)
             with app.app_context():
                 from app import NfcFulfillmentEvent,NfcFulfillment
                 self.assertEqual(NfcFulfillmentEvent.query.count(),3)
