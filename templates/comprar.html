@@ -7,7 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="{{ url_for('static',filename='official.css',v='20261117') }}">
-<link rel="stylesheet" href="{{ url_for('static',filename='commerce.css',v='20261117') }}">
+<link rel="stylesheet" href="{{ url_for('static',filename='commerce.css',v='20261119-form') }}">
+<script defer src="{{ url_for('static', filename='form-validation.js', v='20261119') }}"></script>
 </head><body class="checkout-page">
 <header class="checkout-top"><a class="checkout-brand" href="{{ url_for('index') }}#comprar" aria-label="Voltar ao site G Tech"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="">G TECH</a><a class="checkout-back" href="{{ url_for('index') }}#comprar">← Voltar aos serviços</a></header>
 <div class="checkout-wrap">
@@ -28,10 +29,10 @@
 <form action="{{ url_for('checkout_product',sku=sku) }}" method="post" id="checkout-form">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
-<label>Seu nome completo<input name="nome" required minlength="2" maxlength="100" autocomplete="name" placeholder="Nome e sobrenome"></label>
-<label>WhatsApp com DDD<input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX"></label>
-<label class="consent"><input type="checkbox" name="consentimento" value="yes" required><span>Autorizo o uso dos meus dados para este pedido e atendimento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não é autorização para campanhas.</span></label>
-<label class="consent"><input type="checkbox" name="termos" value="yes" required><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>, sem prejuízo dos meus direitos legais.</span></label>
+<label>Seu nome completo<input name="nome" required minlength="2" maxlength="100" autocomplete="name" placeholder="Nome e sobrenome" value="{{ (form_values or {}).get('nome','') }}" aria-describedby="checkout-name-error" {% if (form_errors or {}).get('nome') %}aria-invalid="true"{% endif %}><small id="checkout-name-error" class="field-error" role="alert" {% if not (form_errors or {}).get('nome') %}hidden{% endif %}>{{ (form_errors or {}).get('nome','') }}</small></label>
+<label>WhatsApp com DDD<input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" value="{{ (form_values or {}).get('whatsapp','') }}" aria-describedby="checkout-phone-error" {% if (form_errors or {}).get('whatsapp') %}aria-invalid="true"{% endif %}><small id="checkout-phone-error" class="field-error" role="alert" {% if not (form_errors or {}).get('whatsapp') %}hidden{% endif %}>{{ (form_errors or {}).get('whatsapp','') }}</small></label>
+<label class="consent"><input type="checkbox" name="consentimento" value="yes" required {% if (form_values or {}).get('consentimento') %}checked{% endif %}><span>Autorizo o uso dos meus dados para este pedido e atendimento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não é autorização para campanhas.</span></label>
+<label class="consent"><input type="checkbox" name="termos" value="yes" required {% if (form_values or {}).get('termos') %}checked{% endif %}><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>, sem prejuízo dos meus direitos legais.</span></label>
 {% if preview_only %}<p role="status" class="checkout-alert">HOMOLOGAÇÃO: esta tela não coleta pedidos nem processa pagamentos.</p><button class="btn btn-solid checkout-submit" type="button" disabled aria-disabled="true">Pagamento indisponível na homologação</button>{% else %}<button class="btn btn-solid checkout-submit" type="submit">Ir ao Mercado Pago <span aria-hidden="true">↗</span></button>{% endif %}
 </form>
 <p class="checkout-note">Esta tela não cobra seu cartão. Você confirma o pagamento na próxima etapa.</p>
