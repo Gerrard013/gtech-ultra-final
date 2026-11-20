@@ -1,6 +1,7 @@
 """Smoke tests for the official G Tech storefront. No remote payment or CRM calls."""
 import base64
 import os
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -41,6 +42,11 @@ class OfficialSiteTests(unittest.TestCase):
         self.client.get("/")
         with self.client.session_transaction() as sess:
             return sess["lead_csrf"]
+
+    def checkout_nonce(self, page):
+        match = re.search(r\'name="checkout_intent" value="([^"]+)"\', page.get_data(as_text=True))
+        self.assertIsNotNone(match, "Checkout nonce missing")
+        return match.group(1)
 
     def lead_data(self, csrf=None):
         return {
@@ -322,7 +328,7 @@ class OfficialSiteTests(unittest.TestCase):
             with self.client.session_transaction() as sess:
                 csrf_token = sess["checkout_csrf"]
             result = self.client.post("/comprar/google", data={
-                "csrf_token": csrf_token,
+                "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page),
                 "nome": "Maria da Silva", "whatsapp": "123",
                 "consentimento": "yes", "termos": "yes",
             })
@@ -337,6 +343,42 @@ class OfficialSiteTests(unittest.TestCase):
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
+
+
+    def test_repeated_checkout_request_reuses_order_instead_of_charging_twice(self):
+        from app import CheckoutOrder, CheckoutAttempt
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-idempotency",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-signed-webhook-only-12345",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        sent = []
+        def fake_gateway(path, data=None, **kwargs):
+            if path == "/users/me":
+                return {"id": 12345678}
+            sent.append(data)
+            return {"collector_id": 12345678,
+                    "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=once"}
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/foto")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            data = {"csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                    "nome": "Cliente Exemplo", "whatsapp": "(91) 98273-6418",
+                    "consentimento": "yes", "termos": "yes"}
+            with patch("app._mp_request", side_effect=fake_gateway):
+                first = self.client.post("/comprar/foto", data=data)
+                second = self.client.post("/comprar/foto", data=data)
+            self.assertEqual(first.status_code, 303)
+            self.assertEqual(second.status_code, 303)
+            self.assertEqual(first.location, second.location)
+            self.assertEqual(len(sent), 1)
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.count(), 1)
+                self.assertEqual(CheckoutAttempt.query.count(), 1)
 
     def test_nfc_quantity_and_price_are_server_authoritative(self):
         from app import CheckoutOrder, NfcInventory
@@ -371,7 +413,7 @@ class OfficialSiteTests(unittest.TestCase):
                     _lead_attempts.clear()
                 with self.subTest(quantity=quantity):
                     response = self.client.post("/comprar/nfc", data={
-                        "csrf_token": csrf_token, "nome": "Cliente Exemplo",
+                        "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
                         "whatsapp": "(91) 98273-6418", "quantity": quantity,
                         "price": "1", "total_cents": "1",
                         "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
@@ -385,7 +427,7 @@ class OfficialSiteTests(unittest.TestCase):
                 _lead_attempts.clear()
             with patch("app._mp_request", side_effect=gateway):
                 success = self.client.post("/comprar/nfc", data={
-                    "csrf_token": csrf_token, "nome": "Cliente Exemplo",
+                    "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
                     "whatsapp": "(91) 98273-6418", "quantity": "3",
                     "price": "1", "total_cents": "1",
                     "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
@@ -416,11 +458,11 @@ class OfficialSiteTests(unittest.TestCase):
                                      "GTECH_NFC_SALES_ENABLED": "true"}), patch(
                                      "app._checkout_enabled", return_value=True), patch(
                                      "app._secure_db_available", return_value=True):
-            self.client.get("/comprar/nfc")
+            page = self.client.get("/comprar/nfc")
             with self.client.session_transaction() as sess:
                 token = sess["checkout_csrf"]
             resp = self.client.post("/comprar/nfc", data={
-                "csrf_token": token, "nome": "Comprador Exemplo",
+                "csrf_token": token, "checkout_intent": self.checkout_nonce(page), "nome": "Comprador Exemplo",
                 "whatsapp": "(91) 98273-6418", "quantity": "2",
                 "consentimento": "yes", "termos": "yes"})
             self.assertEqual(resp.status_code, 422)
@@ -500,7 +542,7 @@ class OfficialSiteTests(unittest.TestCase):
                 token=sess["checkout_csrf"]
             with patch("urllib.request.urlopen",side_effect=fake_urlopen):
                 response=self.client.post("/comprar/foto",data={
-                    "csrf_token":token,"nome":"Cliente Exemplo",
+                    "csrf_token":token,"checkout_intent":self.checkout_nonce(page),"nome":"Cliente Exemplo",
                     "whatsapp":"(91) 98273-6418","consentimento":"yes", "termos":"yes",
                     "price":"1","total_cents":"1",
                 })
