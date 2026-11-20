@@ -188,6 +188,20 @@ class NfcStockMovement(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
 
 
+class NfcDeliveryAddress(db.Model):
+    """Private fulfillment data; never placed in Mercado Pago URLs or public order pages."""
+    __tablename__ = "gtech_nfc_delivery_addresses"
+    order_id = db.Column(db.String(36), db.ForeignKey("gtech_checkout_orders.id"), primary_key=True)
+    cep = db.Column(db.String(8), nullable=False)
+    state = db.Column(db.String(2), nullable=False)
+    city = db.Column(db.String(90), nullable=False)
+    neighborhood = db.Column(db.String(90), nullable=False)
+    street = db.Column(db.String(160), nullable=False)
+    number = db.Column(db.String(20), nullable=False)
+    complement = db.Column(db.String(160), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+
+
 class NfcStockUnavailable(Exception):
     """There is no confirmed inventory to reserve for this purchase."""
 
@@ -1080,11 +1094,22 @@ def checkout_product(sku: str):
     phone = clean_text(request.form.get("whatsapp"), 40)
     quantity = _parse_checkout_quantity(sku, request.form.get("quantity"))
     delivery_confirmed = request.form.get("nfc_local_delivery") == "yes"
+    region = clean_text(request.form.get("nfc_delivery_region"), 16) or "local"
+    address = {
+        "cep": re.sub(r"\\D", "", request.form.get("nfc_cep", "")),
+        "city": clean_text(request.form.get("nfc_city"), 90),
+        "state": clean_text(request.form.get("nfc_state"), 2).upper(),
+        "street": clean_text(request.form.get("nfc_street"), 160),
+        "number": clean_text(request.form.get("nfc_number"), 20),
+        "neighborhood": clean_text(request.form.get("nfc_neighborhood"), 90),
+        "complement": clean_text(request.form.get("nfc_complement"), 160),
+    }
     values = {"nome": name, "whatsapp": phone,
               "quantity": request.form.get("quantity", "1"),
               "checkout_intent": intent,
               "nfc_local_delivery": delivery_confirmed,
-              "consentimento": True, "termos": True}
+              "nfc_delivery_region": region,
+              "consentimento": True, "termos": True, **{"nfc_" + k: v for k,v in address.items()}}
     field_errors = {}
     if len(name) < 2:
         field_errors["nome"] = "Informe seu nome com pelo menos 2 caracteres."
@@ -1092,8 +1117,20 @@ def checkout_product(sku: str):
         field_errors["whatsapp"] = "Informe um celular brasileiro válido com DDD e nono dígito. Não aceitamos números de exemplo."
     if quantity is None:
         field_errors["quantity"] = "Escolha uma quantidade inteira entre 1 e o limite do pedido."
-    if sku == "nfc" and not delivery_confirmed:
-        field_errors["nfc_local_delivery"] = "Confirme que a entrega será em Belém/PA."
+    if sku == "nfc":
+        if region != "local":
+            field_errors["nfc_delivery_region"] = "Outras cidades e estados exigem cotação prévia de frete. Use Solicitar frete."
+        if not delivery_confirmed:
+            field_errors["nfc_local_delivery"] = "Confirme que a entrega será em Belém/PA."
+        if not re.fullmatch(r"[0-9]{8}", address["cep"]):
+            field_errors["nfc_cep"] = "Informe um CEP válido com 8 números."
+        if address["state"] != "PA" or address["city"].casefold() not in {"belém", "belem"}:
+            field_errors["nfc_city"] = "Pagamento com entrega incluída apenas para Belém/PA. Outras cidades: cotar frete."
+        for field, title in [("street", "logradouro"), ("number", "número"), ("neighborhood", "bairro")]:
+            if len(address[field]) < 2:
+                field_errors["nfc_" + field] = "Informe " + title + " para a entrega."
+        if not re.fullmatch(r"[0-9A-Za-zÀ-ÿ .,/-]{2,160}", address["street"]) or len(address["number"]) > 20:
+            field_errors["nfc_street"] = "Confira o endereço de entrega."
     if field_errors:
         return _checkout_form_error(sku, offer, preview_only, checkout_enabled, values,
                                     field_errors, session["checkout_csrf"])
@@ -1129,6 +1166,12 @@ def checkout_product(sku: str):
             inventory.available -= quantity
         order.lead_id = lead.id
         db.session.add(order)
+        if sku == "nfc":
+            db.session.add(NfcDeliveryAddress(
+                order_id=order.id, cep=address["cep"], state=address["state"],
+                city=address["city"], street=address["street"],
+                neighborhood=address["neighborhood"], number=address["number"],
+                complement=address["complement"] or None))
         db.session.add(CheckoutAttempt(token_hash=intent_hash, order_id=order.id))
         db.session.add(ConsentEvidence(lead_id=lead.id, purpose="checkout", privacy_version="2026-11-16", terms_version="2026-11-16"))
         db.session.commit()
