@@ -1,6 +1,7 @@
 """Smoke tests for the official G Tech storefront. No remote payment or CRM calls."""
 import base64
 import os
+import re
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -42,6 +43,11 @@ class OfficialSiteTests(unittest.TestCase):
         with self.client.session_transaction() as sess:
             return sess["lead_csrf"]
 
+    def checkout_nonce(self, page):
+        match = re.search(r'name="checkout_intent" value="([^"]+)"', page.get_data(as_text=True))
+        self.assertIsNotNone(match, "Checkout nonce missing")
+        return match.group(1)
+
     def lead_data(self, csrf=None):
         return {
             "csrf_token": csrf if csrf is not None else self.csrf(),
@@ -70,6 +76,17 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIn('name="termos"', html)
         self.assertIn("/termos", html)
 
+    def test_home_boots_branded_opening_before_video_load(self):
+        page = self.client.get("/")
+        html = page.get_data(as_text=True)
+        self.assertIn('id="gtech-intro-start"', html)
+        self.assertIn('id="gtech-intro-template"', html)
+        self.assertLess(html.index('id="gtech-intro-start"'), html.index('id="showcase-video"'))
+        self.assertIn('id="gtech-intro-replay"', html)
+        self.assertNotIn('id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay', html)
+        self.assertIn("20261119-intro-first", html)
+        self.assertIn('href="/comprar/nfc"', html)
+
     def test_contact_form_saves_local_lead_without_payment(self):
         data = self.lead_data()
         with patch("urllib.request.urlopen", side_effect=AssertionError("Network used")):
@@ -88,7 +105,18 @@ class OfficialSiteTests(unittest.TestCase):
         data = self.lead_data()
         data["whatsapp"] = "123"
         response = self.client.post("/lead", data=data)
-        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("no-store", response.headers.get("Cache-Control", ""))
+        html = response.get_data(as_text=True)
+        self.assertIn('value="Cliente Exemplo"', html)
+        self.assertIn('value="123"', html)
+        self.assertIn('aria-invalid="true"', html)
+        self.assertIn('id="quote-phone-error"', html)
+        self.assertIn('value="Loja de testes"', html)
+        self.assertIn('value="Belém"', html)
+        self.assertIn('value="yes" required checked', html)
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
@@ -103,7 +131,7 @@ class OfficialSiteTests(unittest.TestCase):
             payload = self.lead_data()
             payload["whatsapp"] = number
             response = self.client.post("/lead", data=payload)
-            self.assertEqual(response.status_code, 302, number)
+            self.assertEqual(response.status_code, 422, number)
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
@@ -303,6 +331,233 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(delivery.status,"pending")
             self.assertEqual(delivery.attempts,1)
 
+    def test_checkout_invalid_phone_preserves_name_and_consent(self):
+        # Unit-test the validation branch without activating real payments.
+        with patch("app._checkout_enabled", return_value=True):
+            page = self.client.get("/comprar/google")
+            self.assertEqual(page.status_code, 200)
+            with self.client.session_transaction() as sess:
+                csrf_token = sess["checkout_csrf"]
+            result = self.client.post("/comprar/google", data={
+                "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page),
+                "nome": "Maria da Silva", "whatsapp": "123",
+                "consentimento": "yes", "termos": "yes",
+            })
+        self.assertEqual(result.status_code, 422)
+        self.assertIn("no-store", result.headers.get("Cache-Control", ""))
+        html = result.get_data(as_text=True)
+        self.assertIn('value="Maria da Silva"', html)
+        self.assertIn('value="123"', html)
+        self.assertIn('id="checkout-phone-error"', html)
+        self.assertIn('aria-invalid="true"', html)
+        self.assertNotIn("mercadopago.com/checkout", result.headers.get("Location", ""))
+        with app.app_context():
+            self.assertEqual(Lead.query.count(), 0)
+
+
+
+    def test_repeated_checkout_request_reuses_order_instead_of_charging_twice(self):
+        from app import CheckoutOrder, CheckoutAttempt
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-idempotency",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-signed-webhook-only-12345",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        sent = []
+        def fake_gateway(path, data=None, **kwargs):
+            if path == "/users/me":
+                return {"id": 12345678}
+            sent.append(data)
+            return {"collector_id": 12345678,
+                    "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=once"}
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/foto")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            data = {"csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                    "nome": "Cliente Exemplo", "whatsapp": "(91) 98273-6418",
+                    "consentimento": "yes", "termos": "yes"}
+            with patch("app._mp_request", side_effect=fake_gateway):
+                first = self.client.post("/comprar/foto", data=data)
+                second = self.client.post("/comprar/foto", data=data)
+            self.assertEqual(first.status_code, 303)
+            self.assertEqual(second.status_code, 303)
+            self.assertEqual(first.location, second.location)
+            self.assertEqual(len(sent), 1)
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.count(), 1)
+                self.assertEqual(CheckoutAttempt.query.count(), 1)
+
+    def test_nfc_checkout_gateway_failure_restores_reserved_units(self):
+        from app import NfcInventory, CheckoutOrder
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-gateway-failure",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "5",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            with patch("app._mp_request", side_effect=TimeoutError("gateway test")):
+                response = self.client.post("/comprar/nfc", data={
+                    "csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                    "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
+                    "quantity": "2", "nfc_local_delivery": "yes",
+                    "consentimento": "yes", "termos": "yes",
+                })
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(NfcInventory.query.one().available, 5)
+            self.assertEqual(CheckoutOrder.query.one().status, "cancelled")
+
+    def test_nfc_rejects_quantity_exceeding_remaining_stock(self):
+        from app import NfcInventory, CheckoutOrder
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-stock-limit",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "8",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        def mock_gateway(path, data=None, **kwargs):
+            return ({"id": 12345678} if path == "/users/me" else
+                    {"collector_id": 12345678,
+                     "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=mock"})
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            payload = {"csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                       "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
+                       "quantity": "7", "nfc_local_delivery": "yes",
+                       "consentimento": "yes", "termos": "yes"}
+            with patch("app._mp_request", side_effect=mock_gateway):
+                first = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(first.status_code, 303)
+            with app.app_context():
+                self.assertEqual(NfcInventory.query.one().available, 1)
+            second_page = self.client.get("/comprar/nfc")
+            payload["checkout_intent"] = self.checkout_nonce(second_page)
+            payload["quantity"] = "2"
+            second = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(second.status_code, 422)
+            self.assertIn("Estoque insuficiente", second.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(NfcInventory.query.one().available, 1)
+                self.assertEqual(CheckoutOrder.query.count(), 1)
+
+    def test_nfc_quantity_and_price_are_server_authoritative(self):
+        from app import CheckoutOrder, NfcInventory
+        import json
+        payloads = []
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-credential-not-valid",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-key-gtech-signed-webhook-only",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "8",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        def gateway(path, data=None, **kwargs):
+            if path == "/users/me":
+                return {"id": 12345678}
+            self.assertEqual(path, "/checkout/preferences")
+            payloads.append(data)
+            return {"collector_id": 12345678,
+                    "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=mock"}
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            self.assertEqual(page.status_code, 200)
+            self.assertIn('name="quantity"', page.get_data(as_text=True))
+            with self.client.session_transaction() as sess:
+                csrf_token = sess["checkout_csrf"]
+            for quantity in ("0", "-1", "9", "9999", "1.5", "abc"):
+                # Each simulated visitor uses a fresh request-rate window.
+                with _lead_attempts_lock:
+                    _lead_attempts.clear()
+                with self.subTest(quantity=quantity):
+                    response = self.client.post("/comprar/nfc", data={
+                        "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
+                        "whatsapp": "(91) 98273-6418", "quantity": quantity,
+                        "price": "1", "total_cents": "1",
+                        "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
+                    })
+                    self.assertEqual(response.status_code, 422)
+                    self.assertIn('value="Cliente Exemplo"', response.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(Lead.query.count(), 0)
+                self.assertEqual(CheckoutOrder.query.count(), 0)
+            with _lead_attempts_lock:
+                _lead_attempts.clear()
+            with patch("app._mp_request", side_effect=gateway):
+                success = self.client.post("/comprar/nfc", data={
+                    "csrf_token": csrf_token, "checkout_intent": self.checkout_nonce(page), "nome": "Cliente Exemplo",
+                    "whatsapp": "(91) 98273-6418", "quantity": "3",
+                    "price": "1", "total_cents": "1",
+                    "nfc_local_delivery": "yes", "consentimento": "yes", "termos": "yes",
+                })
+            self.assertEqual(success.status_code, 303)
+            self.assertEqual(len(payloads), 1)
+            self.assertEqual(payloads[0]["items"][0]["quantity"], 3)
+            self.assertEqual(payloads[0]["items"][0]["unit_price"], 79.99)
+            with app.app_context():
+                order = CheckoutOrder.query.one()
+                self.assertEqual(order.total_cents, 23997)
+                self.assertEqual(order.quantity, 3)
+                self.assertEqual(NfcInventory.query.one().available, 5)
+
+    def test_nfc_fallback_allows_quantity_inquiry_without_charging(self):
+        from app import CheckoutOrder
+        page = self.client.get("/comprar/nfc")
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn('id="nfc-quantity"', html)
+        self.assertIn('id="nfc-whatsapp-order"', html)
+        self.assertIn("Compra online de NFC ainda não liberada", html)
+        self.assertNotIn('id="checkout-form"', html)
+        with app.app_context():
+            self.assertEqual(CheckoutOrder.query.count(), 0)
+
+    def test_nfc_sale_is_locked_when_stock_not_verified(self):
+        from app import CheckoutOrder
+        with patch.dict(os.environ, {"GTECH_NFC_INITIAL_STOCK": "",
+                                     "GTECH_NFC_SALES_ENABLED": "true"}), patch(
+                                     "app._checkout_enabled", return_value=True), patch(
+                                     "app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            self.assertIn("Compra online de NFC ainda não liberada", page.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(CheckoutOrder.query.count(), 0)
+
+    def test_nfc_cannot_buy_without_delivery_confirmation(self):
+        with patch.dict(os.environ, {"GTECH_NFC_INITIAL_STOCK": "8",
+                                     "GTECH_NFC_SALES_ENABLED": "true"}), patch(
+                                     "app._checkout_enabled", return_value=True), patch(
+                                     "app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            resp = self.client.post("/comprar/nfc", data={
+                "csrf_token": token, "checkout_intent": self.checkout_nonce(page), "nome": "Comprador Exemplo",
+                "whatsapp": "(91) 98273-6418", "quantity": "2",
+                "consentimento": "yes", "termos": "yes"})
+            self.assertEqual(resp.status_code, 422)
+            self.assertIn("Confirme que a entrega", resp.get_data(as_text=True))
+
     def test_checkout_disabled_until_real_gateway_configured(self):
         for sku in ("foto", "google"):
             page = self.client.get("/comprar/" + sku)
@@ -310,7 +565,8 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertIn("temporariamente indisponível", page.get_data(as_text=True))
             self.assertNotIn('<form ', page.get_data(as_text=True))
             self.assertEqual(self.client.post("/comprar/" + sku, data={"nome": "Teste"}).status_code, 503)
-        self.assertEqual(self.client.get("/comprar/nfc").status_code, 404)
+        self.assertEqual(self.client.get("/comprar/nfc").status_code, 200)
+        self.assertIn("Compra online de NFC ainda não liberada", self.client.get("/comprar/nfc").get_data(as_text=True))
         with app.app_context():
             self.assertEqual(Lead.query.count(), 0)
 
@@ -325,7 +581,8 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertEqual(products["cardapio"]["preco_centavos"], None)
         self.assertEqual(CATALOGO_GTECH["planos"]["site_manutencao"]["preco_centavos"], 14999)
         self.assertEqual(CATALOGO_GTECH["planos"]["site_sem_setup"]["preco_centavos"], 12999)
-        self.assertEqual(set(CHECKOUT_OFFERS), {"foto", "google"})
+        self.assertEqual(set(CHECKOUT_OFFERS), {"foto", "google", "nfc"})
+        self.assertEqual(CHECKOUT_OFFERS["nfc"]["max_quantity"], 8)
         for service in SERVICES:
             self.assertEqual(service["price"], products[service["id"]]["preco_exibicao"])
 
@@ -375,7 +632,7 @@ class OfficialSiteTests(unittest.TestCase):
                 token=sess["checkout_csrf"]
             with patch("urllib.request.urlopen",side_effect=fake_urlopen):
                 response=self.client.post("/comprar/foto",data={
-                    "csrf_token":token,"nome":"Cliente Exemplo",
+                    "csrf_token":token,"checkout_intent":self.checkout_nonce(page),"nome":"Cliente Exemplo",
                     "whatsapp":"(91) 98273-6418","consentimento":"yes", "termos":"yes",
                     "price":"1","total_cents":"1",
                 })

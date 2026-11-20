@@ -195,11 +195,13 @@
   const introDuration = 3400;
   function playGtechIntro(force = false) {
     if (!introTemplate || activeIntro) return;
-    const overlay = introTemplate.content.firstElementChild.cloneNode(true);
-    document.body.appendChild(overlay);
+    const overlay = document.getElementById("gtech-intro-start") || introTemplate.content.firstElementChild.cloneNode(true);
+    if (!overlay.isConnected) document.body.appendChild(overlay);
     activeIntro = overlay;
+    document.getElementById("showcase-video")?.pause();
     const canvas = overlay.querySelector("#gtech-intro-canvas");
-    const ctx = canvas.getContext("2d", {alpha: false});
+    const ctx = canvas?.getContext("2d", {alpha: false});
+    if (!ctx) {overlay.remove();activeIntro=null;return;}
     const center = overlay.querySelector(".intro-center");
     const logo = overlay.querySelector("#gtech-intro-logo");
     const skip = overlay.querySelector("#gtech-intro-skip");
@@ -275,7 +277,10 @@
       window.removeEventListener("resize",onResize);
       overlay.classList.add("intro-out");
       document.body.style.overflow=priorOverflow;
-      window.setTimeout(()=>{overlay.remove();activeIntro=null;previousFocus?.focus?.({preventScroll:true});},650);
+      window.setTimeout(()=>{
+        overlay.remove();activeIntro=null;previousFocus?.focus?.({preventScroll:true});
+        if (!reduced.matches) document.getElementById("showcase-video")?.play()?.catch(()=>{});
+      },650);
     }
     skip.addEventListener("click",dismiss,{once:true});
     if (reduced.matches) {window.setTimeout(dismiss,1050);return;}
@@ -343,6 +348,18 @@
     raf=window.requestAnimationFrame(draw);
   }
   if(replay)replay.addEventListener("click",()=>playGtechIntro(true));
-  if(document.readyState==="complete"){window.requestAnimationFrame(()=>playGtechIntro(false));}
-  else window.addEventListener("load",()=>playGtechIntro(false),{once:true});
+  // Defer JS executes after markup but before images/video finish loading.
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  const resetInitialScroll = () => {
+    if (location.hash) return;
+    const previous = root.style.scrollBehavior;
+    root.style.scrollBehavior = "auto";
+    window.scrollTo(0, 0);
+    root.style.scrollBehavior = previous;
+  };
+  resetInitialScroll();
+  playGtechIntro(false);
+  window.addEventListener("pageshow", event => {
+    if (event.persisted) {resetInitialScroll();playGtechIntro(false);}
+  });
 })();
