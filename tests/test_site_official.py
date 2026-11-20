@@ -44,7 +44,7 @@ class OfficialSiteTests(unittest.TestCase):
             return sess["lead_csrf"]
 
     def checkout_nonce(self, page):
-        match = re.search(r\'name="checkout_intent" value="([^"]+)"\', page.get_data(as_text=True))
+        match = re.search(r'name="checkout_intent" value="([^"]+)"', page.get_data(as_text=True))
         self.assertIsNotNone(match, "Checkout nonce missing")
         return match.group(1)
 
