@@ -22,7 +22,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='official.css', v='20261117') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='commerce.css', v='20261117') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='commerce.css', v='20261119-form') }}">
+  <script defer src="{{ url_for('static', filename='form-validation.js', v='20261119') }}"></script>
   <script defer src="{{ url_for('static', filename='official.js', v='20261116-form400') }}"></script>
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"G Tech | Innovation & Solutions","url":"{{ public_site_url }}/","logo":"{{ public_site_url }}/static/assets/gtech-logo.png","sameAs":["https://www.instagram.com/gtech_brasil/"],"contactPoint":{"@type":"ContactPoint","telephone":"+55-91-98615-2222","contactType":"sales","availableLanguage":"Portuguese"}}</script>
 </head>
@@ -251,25 +252,29 @@
             <p class="form-instruction">4 informações para iniciar. Sem cobrança, sem compromisso.</p>
             <fieldset class="briefing-fields">
               <label>Como podemos chamar você? <span>*</span>
-                <input name="nome" type="text" required minlength="2" maxlength="120" autocomplete="name" placeholder="Seu primeiro nome">
+                <input name="nome" type="text" required minlength="2" maxlength="120" autocomplete="name" placeholder="Seu primeiro nome" value="{{ form_values.get('nome','') }}" {% if form_errors.get('nome') %}aria-invalid="true"{% endif %} aria-describedby="quote-name-error">
+                <small id="quote-name-error" class="field-error" role="alert" {% if not form_errors.get('nome') %}hidden{% endif %}>{{ form_errors.get('nome','') }}</small>
               </label>
               <label>WhatsApp com DDD <span>*</span>
-                <input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" aria-describedby="phone-help">
+                <input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" value="{{ form_values.get('whatsapp','') }}" aria-describedby="phone-help quote-phone-error" {% if form_errors.get('whatsapp') %}aria-invalid="true"{% endif %}>
                 <small id="phone-help" class="form-helper">Um celular brasileiro verdadeiro. Não aceitamos números de exemplo.</small>
+                <small id="quote-phone-error" class="field-error" role="alert" {% if not form_errors.get('whatsapp') %}hidden{% endif %}>{{ form_errors.get('whatsapp','') }}</small>
               </label>
               <label>Qual serviço deseja? <span>*</span>
-                <select name="servico" id="service-select" required><option value="">Escolha a solução</option>{% for service in services %}<option value="{{ service.form_value }}">{{ service.title }}</option>{% endfor %}<option value="Outro serviço">Preciso de orientação</option></select>
+                <select name="servico" id="service-select" required aria-describedby="quote-service-error" {% if form_errors.get('servico') %}aria-invalid="true"{% endif %}><option value="">Escolha a solução</option>{% for service in services %}<option value="{{ service.form_value }}" {% if form_values.get('servico') == service.form_value %}selected{% endif %}>{{ service.title }}</option>{% endfor %}<option value="Outro serviço" {% if form_values.get('servico') == 'Outro serviço' %}selected{% endif %}>Preciso de orientação</option></select>
+                <small id="quote-service-error" class="field-error" role="alert" {% if not form_errors.get('servico') %}hidden{% endif %}>{{ form_errors.get('servico','') }}</small>
               </label>
               <label>Descreva o que precisa <span>*</span>
-                <textarea name="objetivo" required minlength="10" maxlength="2000" rows="3" placeholder="Ex.: Quero NFC para a recepção do meu estúdio."></textarea>
+                <textarea name="objetivo" required minlength="10" maxlength="2000" rows="3" placeholder="Ex.: Quero NFC para a recepção do meu estúdio." aria-describedby="quote-goal-error" {% if form_errors.get('objetivo') %}aria-invalid="true"{% endif %}>{{ form_values.get('objetivo','') }}</textarea>
+                <small id="quote-goal-error" class="field-error" role="alert" {% if not form_errors.get('objetivo') %}hidden{% endif %}>{{ form_errors.get('objetivo','') }}</small>
               </label>
               <details class="optional-brief"><summary>Dados adicionais (opcional)</summary>
-                <label>Nome do negócio<input name="negocio" type="text" maxlength="180" autocomplete="organization" placeholder="Empresa, loja ou projeto"></label>
-                <label>Sua cidade<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém"></label>
+                <label>Nome do negócio<input name="negocio" type="text" maxlength="180" autocomplete="organization" placeholder="Empresa, loja ou projeto" value="{{ form_values.get('negocio','') }}"></label>
+                <label>Sua cidade<input name="cidade" type="text" maxlength="100" autocomplete="address-level2" placeholder="Ex.: Belém" value="{{ form_values.get('cidade','') }}"></label>
               </details>
-              <label class="consent"><input type="checkbox" name="consentimento" value="yes" required>
+              <label class="consent"><input type="checkbox" name="consentimento" value="yes" required {% if form_values.get('consentimento') %}checked{% endif %}>
                 <span>Autorizo a G Tech a usar os dados informados para responder a este orçamento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não autorizo campanhas de publicidade por este campo.</span></label>
-              <label class="consent consent-terms"><input type="checkbox" name="termos" value="yes" required aria-label="Li e aceito os Termos de Uso da G Tech">
+              <label class="consent consent-terms"><input type="checkbox" name="termos" value="yes" required aria-label="Li e aceito os Termos de Uso da G Tech" {% if form_values.get('termos') %}checked{% endif %}>
                 <span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de Uso e de Serviço da G Tech</a>, sem prejuízo dos meus direitos legais.</span></label>
               <button class="btn btn-solid form-submit" type="submit">Pedir orçamento gratuito <span aria-hidden="true">↗</span></button>
             </fieldset>
