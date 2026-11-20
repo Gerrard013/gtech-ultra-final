@@ -466,6 +466,49 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(NfcInventory.query.one().available, 1)
                 self.assertEqual(CheckoutOrder.query.count(), 1)
 
+    def test_checkout_insert_respects_foreign_keys_on_sqlite(self):
+        # SQLite normally disables FK checks, masking a production-only bug.
+        # Enable them specifically for this test, mirroring PostgreSQL.
+        from sqlalchemy import text
+        from app import CheckoutOrder, CheckoutAttempt, NfcDeliveryAddress
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-ci-fake-secret",
+            "MERCADOPAGO_WEBHOOK_SECRET": "ci-dummy-webhook-key-not-production",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "8",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        def fake_mp(path, data=None, **kwargs):
+            return ({"id": 12345678} if path == "/users/me" else {
+                "collector_id": 12345678,
+                "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=fk-test"
+            })
+        with app.app_context():
+            db.session.execute(text("PRAGMA foreign_keys=ON"))
+            db.session.commit()
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                csrf = sess["checkout_csrf"]
+            payload = {
+                "csrf_token": csrf, "checkout_intent": self.checkout_nonce(page),
+                "nome": "Teste Integridade", "whatsapp": "(91) 98273-6418",
+                "quantity": "2", "nfc_local_delivery": "yes",
+                "consentimento": "yes", "termos": "yes", **self.nfc_shipping(),
+            }
+            with patch("app._mp_request", side_effect=fake_mp):
+                response = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(response.status_code, 303,
+                             response.get_data(as_text=True)[:220])
+        with app.app_context():
+            self.assertEqual(CheckoutOrder.query.count(), 1)
+            self.assertEqual(CheckoutAttempt.query.count(), 1)
+            self.assertEqual(NfcDeliveryAddress.query.count(), 1)
+            self.assertEqual(CheckoutOrder.query.one().quantity, 2)
+
     def test_nfc_quantity_and_price_are_server_authoritative(self):
         from app import CheckoutOrder, NfcInventory
         import json
