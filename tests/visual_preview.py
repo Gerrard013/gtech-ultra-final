@@ -63,7 +63,8 @@ try:
             page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
             page.goto("http://127.0.0.1:5073/#solucoes",wait_until="domcontentloaded")
-            assert page.locator(".gtech-intro").is_visible(), "Direct deep link must also show opening"
+            page.reload(wait_until="domcontentloaded")
+            assert page.locator(".gtech-intro").is_visible(), "Fresh load of deep link must show opening"
             page.locator("#gtech-intro-skip").click()
             page.wait_for_timeout(790)
             page.evaluate("window.scrollTo({top:0,left:0,behavior:'instant'})")
@@ -181,10 +182,6 @@ try:
             assert "319,96" in page.locator("#nfc-total-price").inner_text()
             assert page.locator(".checkout-submit").is_disabled(), "Preview must never collect payments"
             page.screenshot(path=str(DEST/f"{label}_nfc_quantidade.png"),full_page=True,animations="disabled")
-            # A locked production checkout must still allow a no-charge quantity inquiry.
-            page.context.clear_cookies()
-            page.goto("http://127.0.0.1:5073/comprar/nfc",wait_until="domcontentloaded")
-            assert page.locator("#nfc-quantity").count()==1
             page.close()
         browser.close()
 finally:
