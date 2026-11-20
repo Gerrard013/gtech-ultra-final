@@ -27,6 +27,7 @@
 {% if checkout_enabled or preview_only %}
 <p>Informe um contato para acompanhar o serviço. Depois, confira as opções e confirme o pagamento no Mercado Pago.</p>
 {% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div role="alert">{% for category,message in messages %}<p class="checkout-alert">{{ message }}</p>{% endfor %}</div>{% endif %}{% endwith %}
+{% if (form_errors or {}).get('checkout_error') %}<p class="checkout-alert" role="alert">{{ (form_errors or {}).get('checkout_error') }}</p>{% endif %}
 <form action="{{ url_for('checkout_product',sku=sku) }}" method="post" id="checkout-form">
 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 <input type="hidden" name="checkout_intent" value="{{ checkout_intent }}">
