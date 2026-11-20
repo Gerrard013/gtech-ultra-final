@@ -1527,14 +1527,26 @@ def internal_nfc_health():
     pending = CheckoutPaymentDelivery.query.filter(
         CheckoutPaymentDelivery.delivered_revision < CheckoutPaymentDelivery.revision
     ).count()
+    pending_leads = CrmDelivery.query.filter(CrmDelivery.status != "delivered").count()
+    s2s_secret_ready = len(os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()) >= 32
+    lead_sync_ready = (
+        os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() == "true"
+        and os.getenv("CRM_LEAD_CAPTURE_URL", "").strip() == CRM_SITE_ENDPOINT
+        and s2s_secret_ready
+    )
+    payment_sync_ready = (
+        os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() == "true"
+        and s2s_secret_ready
+    )
     return {
         "contractVersion": 1,
         "databasePersistent": _secure_db_available(),
         "gatewayConfigured": _mp_credentials_ready(),
         "checkoutEnabled": _checkout_enabled(),
         "nfcSalesEnabled": _nfc_checkout_enabled(),
-        "crmLeadSyncEnabled": os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() == "true",
-        "crmPaymentSyncEnabled": os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() == "true",
+        "crmLeadSyncEnabled": lead_sync_ready,
+        "crmPaymentSyncEnabled": payment_sync_ready,
+        "pendingLeadSync": pending_leads,
         "pendingPaymentSync": pending,
         "totalNfcOrders": CheckoutOrder.query.filter_by(sku="nfc").count(),
     }, 200, {"Cache-Control": "no-store, private"}
