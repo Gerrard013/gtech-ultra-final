@@ -8,6 +8,16 @@
   if (!quantity || !total) return;
   const chat = document.getElementById("nfc-whatsapp-order");
   const chatBase = chat?.href || "";
+  const region = document.getElementById("nfc-shipping-region");
+  const cep = document.getElementById("nfc-dest-cep");
+  const city = document.getElementById("nfc-dest-city");
+  const state = document.getElementById("nfc-dest-state");
+  const quote = document.getElementById("nfc-nationwide-quote");
+  const localAddress = document.getElementById("nfc-local-address");
+  const localConfirmation = document.getElementById("nfc-local-confirmation");
+  const submit = form?.querySelector("button[type=submit]");
+  const checkoutNotice = document.getElementById("nfc-delivery-notice");
+  const isNational = () => region?.value === "national";
   const cents = Number(total.dataset.unitCents);
   if (!Number.isSafeInteger(cents) || cents < 1) return;
   const minimum = Number(quantity.min || "1");
@@ -22,10 +32,11 @@
       if (chat) {
         const link = new URL(chatBase);
         const description = count === 1 ? "1 plaquinha NFC" : count + " plaquinhas NFC";
-        link.searchParams.set("text", "Olá! Vim pelo site da G Tech e quero consultar a compra de " + description + ". Valor previsto: " + money.format(count * cents / 100) + ". Entrega em Belém/PA. Podem confirmar estoque e prazo?");
+        const destination = isNational() ? "Destino: " + (city?.value || "não informado") + "/" + (state?.value || "?") + ", CEP " + (cep?.value || "não informado") + ". Solicito cotação de frete antes do pagamento." : "Entrega em Belém/PA. Endereço completo será informado de forma privada na confirmação.";
+        link.searchParams.set("text", "Olá! Quero consultar a compra de " + description + ". Valor dos produtos: " + money.format(count * cents / 100) + ". " + destination + " Podem confirmar o estoque e o valor final?");
         chat.href = link.toString();
         chat.removeAttribute("aria-disabled");
-        chat.textContent = "Consultar " + count + " unidade(s) pelo WhatsApp ↗";
+        chat.textContent = isNational() ? "Cotar frete para " + count + " unidade(s) ↗" : "Consultar " + count + " unidade(s) pelo WhatsApp ↗";
       }
       quantity.removeAttribute("aria-invalid");
       const error = document.getElementById("nfc-quantity-error");
@@ -36,6 +47,37 @@
       if (chat) {chat.href = "#nfc-quantity";chat.setAttribute("aria-disabled","true");}
     }
   };
+  const updateShipping = () => {
+    const nationwide = isNational();
+    if (localAddress) {
+      localAddress.hidden = nationwide;
+      localAddress.querySelectorAll("input[required]").forEach(input => {input.disabled = nationwide;});
+    }
+    if (localConfirmation) {
+      localConfirmation.hidden = nationwide;
+      const check = localConfirmation.querySelector("input");
+      if (check) check.disabled = nationwide;
+    }
+    if (submit) {
+      submit.hidden = nationwide;
+      submit.disabled = nationwide;
+    }
+    if (quote) {
+      quote.hidden = !nationwide;
+      if (nationwide) {
+        const count = Number(quantity.value);
+        const url = new URL("https://wa.me/5591986152222");
+        url.searchParams.set("text", "Olá! Gostaria de comprar " + (Number.isSafeInteger(count)?count:1) + " plaquinha(s) NFC da G Tech. CEP: " + (cep?.value || "a informar") + ", cidade: " + (city?.value || "a informar") + ", UF: " + (state?.value || "a informar") + ". Podem informar o frete e o total antes do pagamento?");
+        quote.href = url.toString();
+      }
+    }
+    if (checkoutNotice) checkoutNotice.textContent = nationwide ?
+      "Fora de Belém: somente cotação de frete. Não será cobrado antes do preço total ser confirmado." :
+      "Belém/PA: entrega incluída no valor anunciado; informe o endereço completo.";
+    update();
+  };
+  region?.addEventListener("change", updateShipping);
+  [cep,city,state].forEach(input => input?.addEventListener("input",updateShipping));
   quantity.addEventListener("input", update);
   quantity.addEventListener("change", update);
   document.querySelectorAll("[data-quantity-step]").forEach(button => button.addEventListener("click", () => {
@@ -52,5 +94,5 @@
       submit.textContent = "Preparando pagamento...";
     }
   });
-  update();
+  updateShipping();
 })();
