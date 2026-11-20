@@ -1435,6 +1435,12 @@ def sitemap():
 def internal_nfc_stock():
     """Private CRM proxy endpoint: never accessible without a shared S2S secret."""
     secret = os.getenv("GTECH_NFC_STOCK_SECRET", "").strip()
+    if len(secret) < 32:
+        # Domain-separated key from existing site-to-CRM integration;
+        # never reuse the raw lead-capture HMAC key as an HTTP token.
+        master = os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()
+        secret = (hmac.new(master.encode(), b"gtech-nfc-inventory-v1",
+                           hashlib.sha256).hexdigest() if len(master) >= 32 else "")
     supplied = request.headers.get("X-GTech-NFC-Key", "")
     if len(secret) < 32 or not hmac.compare_digest(supplied, secret):
         abort(403)
