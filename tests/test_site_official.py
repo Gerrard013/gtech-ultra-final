@@ -76,6 +76,17 @@ class OfficialSiteTests(unittest.TestCase):
         self.assertIn('name="termos"', html)
         self.assertIn("/termos", html)
 
+    def test_home_boots_branded_opening_before_video_load(self):
+        page = self.client.get("/")
+        html = page.get_data(as_text=True)
+        self.assertIn('id="gtech-intro-start"', html)
+        self.assertIn('id="gtech-intro-template"', html)
+        self.assertLess(html.index('id="gtech-intro-start"'), html.index('id="showcase-video"'))
+        self.assertIn('id="gtech-intro-replay"', html)
+        self.assertNotIn('id="showcase-video" class="scene-video belem-video" controls muted playsinline autoplay', html)
+        self.assertIn("20261119-intro-first", html)
+        self.assertIn('href="/comprar/nfc"', html)
+
     def test_contact_form_saves_local_lead_without_payment(self):
         data = self.lead_data()
         with patch("urllib.request.urlopen", side_effect=AssertionError("Network used")):
