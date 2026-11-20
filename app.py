@@ -273,7 +273,8 @@ def _new_checkout_intent(sku: str) -> str:
     if "checkout_identity" not in session:
         session["checkout_identity"] = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
-    manifest = f"{session[\'checkout_identity\']}:{sku}:{nonce}"
+    identity = session["checkout_identity"]
+    manifest = f"{identity}:{sku}:{nonce}"
     signature = hmac.new(str(app.secret_key).encode(), manifest.encode(), hashlib.sha256).hexdigest()
     return nonce + "." + signature
 
