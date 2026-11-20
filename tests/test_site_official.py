@@ -380,6 +380,73 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(CheckoutOrder.query.count(), 1)
                 self.assertEqual(CheckoutAttempt.query.count(), 1)
 
+    def test_nfc_checkout_gateway_failure_restores_reserved_units(self):
+        from app import NfcInventory, CheckoutOrder
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-gateway-failure",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "5",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            with patch("app._mp_request", side_effect=TimeoutError("gateway test")):
+                response = self.client.post("/comprar/nfc", data={
+                    "csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                    "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
+                    "quantity": "2", "nfc_local_delivery": "yes",
+                    "consentimento": "yes", "termos": "yes",
+                })
+        self.assertEqual(response.status_code, 302)
+        with app.app_context():
+            self.assertEqual(NfcInventory.query.one().available, 5)
+            self.assertEqual(CheckoutOrder.query.one().status, "cancelled")
+
+    def test_nfc_rejects_quantity_exceeding_remaining_stock(self):
+        from app import NfcInventory, CheckoutOrder
+        env = {
+            "GTECH_CHECKOUT_ENABLED": "true",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-test-stock-limit",
+            "MERCADOPAGO_WEBHOOK_SECRET": "unit-test-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "12345678",
+            "MERCADOPAGO_CNPJ_VERIFIED": "true",
+            "GTECH_NFC_SALES_ENABLED": "true",
+            "GTECH_NFC_INITIAL_STOCK": "8",
+            "RAILWAY_ENVIRONMENT": "production",
+        }
+        def mock_gateway(path, data=None, **kwargs):
+            return ({"id": 12345678} if path == "/users/me" else
+                    {"collector_id": 12345678,
+                     "init_point": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=mock"})
+        with patch.dict(os.environ, env), patch("app._secure_db_available", return_value=True):
+            page = self.client.get("/comprar/nfc")
+            with self.client.session_transaction() as sess:
+                token = sess["checkout_csrf"]
+            payload = {"csrf_token": token, "checkout_intent": self.checkout_nonce(page),
+                       "nome": "Comprador Teste", "whatsapp": "(91) 98273-6418",
+                       "quantity": "7", "nfc_local_delivery": "yes",
+                       "consentimento": "yes", "termos": "yes"}
+            with patch("app._mp_request", side_effect=mock_gateway):
+                first = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(first.status_code, 303)
+            with app.app_context():
+                self.assertEqual(NfcInventory.query.one().available, 1)
+            second_page = self.client.get("/comprar/nfc")
+            payload["checkout_intent"] = self.checkout_nonce(second_page)
+            payload["quantity"] = "2"
+            second = self.client.post("/comprar/nfc", data=payload)
+            self.assertEqual(second.status_code, 422)
+            self.assertIn("Estoque insuficiente", second.get_data(as_text=True))
+            with app.app_context():
+                self.assertEqual(NfcInventory.query.one().available, 1)
+                self.assertEqual(CheckoutOrder.query.count(), 1)
+
     def test_nfc_quantity_and_price_are_server_authoritative(self):
         from app import CheckoutOrder, NfcInventory
         import json
