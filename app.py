@@ -1559,7 +1559,8 @@ def _verify_mercadopago_merchant_after_boot():
         actual = str(result.get("id") or "")
         expected = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
         if expected and hmac.compare_digest(actual, expected):
-            app.logger.info("Mercado Pago credential read-only preflight: merchant MATCH")
+            # Operational readiness message; no merchant ID or credential is logged.
+            app.logger.warning("Mercado Pago credential read-only preflight: merchant MATCH")
         else:
             app.logger.error("Mercado Pago credential read-only preflight: merchant MISMATCH")
     except Exception as exc:
