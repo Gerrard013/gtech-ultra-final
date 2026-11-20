@@ -466,6 +466,86 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(NfcInventory.query.one().available, 1)
                 self.assertEqual(CheckoutOrder.query.count(), 1)
 
+    def test_nfc_crm_queue_reports_address_and_priority_before_payment(self):
+        from app import CheckoutOrder, NfcDeliveryAddress
+        import uuid
+        with patch.dict(os.environ, {
+            "GTECH_NFC_STOCK_SECRET": "test-private-inventory-secret-123456789",
+            "GTECH_NFC_INITIAL_STOCK": "8"
+        }):
+            headers = {"X-GTech-NFC-Key": "test-private-inventory-secret-123456789"}
+            with app.app_context():
+                lead = Lead(nome="Cliente Teste", whatsapp="91982736418",
+                            negocio="NFC", servico="Placa NFC Personalizada",
+                            prazo="A definir", objetivo="Comprar NFC")
+                db.session.add(lead)
+                db.session.flush()
+                order = CheckoutOrder(id=str(uuid.uuid4()),lead_id=lead.id,
+                    sku="nfc",quantity=2,total_cents=15998,status="pending")
+                db.session.add(order)
+                db.session.flush()
+                db.session.add(NfcDeliveryAddress(
+                    order_id=order.id,cep="66035570",state="PA",city="Belém",
+                    neighborhood="Condor",street="Rua Nova",number="356"))
+                db.session.commit()
+                order_id=order.id
+            self.assertEqual(self.client.get("/internal/nfc/stock").status_code,403)
+            result=self.client.get("/internal/nfc/stock",headers=headers)
+            self.assertEqual(result.status_code,200)
+            record=next(x for x in result.json["orders"] if x["id"]==order_id)
+            self.assertEqual(record["address"]["street"],"Rua Nova")
+            self.assertEqual(record["operationalPriority"],"waiting")
+            self.assertEqual(record["fulfillment"]["status"],"not_started")
+            attempt={"actionId":str(uuid.uuid4()),"actor":"Admin G Tech",
+                     "status":"preparing", "note":"Iniciar separação do pedido"}
+            before=self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=attempt)
+            self.assertEqual(before.status_code,409)
+            self.assertIn("Pagamento não confirmado",before.json["error"])
+            with app.app_context():
+                db.session.get(CheckoutOrder,order_id).status="approved"
+                db.session.commit()
+            result=self.client.get("/internal/nfc/stock",headers=headers)
+            record=next(x for x in result.json["orders"] if x["id"]==order_id)
+            self.assertEqual(record["operationalPriority"],"high")
+            success=self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=attempt)
+            self.assertEqual(success.status_code,200)
+            replay=self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=attempt)
+            self.assertTrue(replay.json["duplicate"])
+            attempt2={"actionId":str(uuid.uuid4()),"actor":"Admin G Tech",
+                     "status":"ready","priority":"urgent",
+                     "note":"Pedido preparado para conferência"}
+            self.assertEqual(self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=attempt2).status_code,200)
+            invalid={"actionId":str(uuid.uuid4()),"actor":"Admin G Tech",
+                     "status":"out_for_delivery",
+                     "note":"Encaminhado para distribuição"}
+            self.assertEqual(self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=invalid).status_code,422)
+            valid={**invalid,"actionId":str(uuid.uuid4()),"deliveryReference":"Moto: operador 7"}
+            self.assertEqual(self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json=valid).status_code,200)
+            with app.app_context():
+                from app import NfcFulfillmentEvent,NfcFulfillment
+                self.assertEqual(NfcFulfillmentEvent.query.count(),3)
+                self.assertEqual(NfcFulfillment.query.one().status,"out_for_delivery")
+                db.session.get(CheckoutOrder,order_id).status="refunded"
+                db.session.commit()
+            locked=self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json={"actionId":str(uuid.uuid4()),"actor":"Admin G Tech",
+                    "status":"delivered","note":"Entrega supostamente concluída",
+                    "deliveryReference":"Moto: operador 7"})
+            self.assertEqual(locked.status_code,409)
+            hold=self.client.post("/internal/nfc/fulfillment/"+order_id,
+                headers=headers,json={"actionId":str(uuid.uuid4()),"actor":"Admin G Tech",
+                    "status":"on_hold","note":"Pagamento estornado; bloquear entrega"})
+            self.assertEqual(hold.status_code,200)
+            flagged=self.client.get("/internal/nfc/stock",headers=headers)
+            record=next(x for x in flagged.json["orders"] if x["id"]==order_id)
+            self.assertEqual(record["operationalPriority"],"urgent")
+
     def test_checkout_insert_respects_foreign_keys_on_sqlite(self):
         # SQLite normally disables FK checks, masking a production-only bug.
         # Enable them specifically for this test, mirroring PostgreSQL.
