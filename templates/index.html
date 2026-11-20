@@ -132,7 +132,7 @@
               <li>{{ 'Entrega digital e atendimento pelo WhatsApp' if sku == 'foto' else ('Perfil sujeito às regras e à elegibilidade do Google' if sku == 'google' else 'Configuração incluída; entrega em Belém/PA') }}</li>
               <li>Sem mensalidade neste serviço</li>
             </ul>
-            <a class="btn btn-solid offer-cta" href="{{ url_for('checkout_product',sku=sku) }}">{% if checkout_enabled and not drive_preview_enabled and (sku != 'nfc' or nfc_checkout_enabled) %}Continuar para pagamento{% elif drive_preview_enabled %}Visualizar compra{% else %}Ver detalhes do serviço{% endif %} <span aria-hidden="true">↗</span></a>
+            <a class="btn btn-solid offer-cta" href="{{ url_for('checkout_product',sku=sku) }}">{% if checkout_enabled and not drive_preview_enabled and (sku != 'nfc' or nfc_checkout_enabled) %}Continuar para pagamento{% elif sku == 'nfc' and not drive_preview_enabled %}Escolher quantidade{% elif drive_preview_enabled %}Visualizar compra{% else %}Ver detalhes do serviço{% endif %} <span aria-hidden="true">↗</span></a>
             <small class="offer-footnote">{{ 'Fotos com danos complexos precisam de orçamento.' if sku == 'foto' else ('Serviço independente, sem garantia de posição nas buscas.' if sku == 'google' else 'Venda sujeita a estoque confirmado e entrega local.') }}</small>
           </article>
           {% endfor %}
@@ -158,7 +158,7 @@
         <article class="service-card reveal">
           <div class="service-top"><span class="service-n">{{ '%02d'|format(loop.index) }}</span><span class="service-symbol" aria-hidden="true">{{ service.symbol }}</span></div>
           <div class="service-info"><span class="service-category">{{ service.category }}</span><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
-          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions">{% if service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Ver pedido de {{ service.title }}">{% if checkout_enabled and not drive_preview_enabled and (service.id != 'nfc' or nfc_checkout_enabled) %}Pagar online{% else %}Ver detalhes{% endif %} <span aria-hidden="true">↗</span></a>{% else %}<a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
+          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions">{% if service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Ver pedido de {{ service.title }}">{% if checkout_enabled and not drive_preview_enabled and (service.id != 'nfc' or nfc_checkout_enabled) %}Pagar online{% elif service.id == 'nfc' and not drive_preview_enabled %}Escolher quantidade{% else %}Ver detalhes{% endif %} <span aria-hidden="true">↗</span></a>{% else %}<a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
         </article>
         {% endfor %}
       </div>
