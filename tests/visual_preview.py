@@ -35,16 +35,20 @@ try:
         raise AssertionError("Local preview server failed to start")
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True, args=["--no-sandbox"])
-        for label, width, height in [("desktop",1440,900),("mobile",390,844)]:
+        for label, width, height in [("desktop",1440,900),("notebook",1155,800),("mobile",390,844)]:
             page=browser.new_page(viewport={"width":width,"height":height},device_scale_factor=1)
             page.route("**/drive.google.com/**",lambda route:route.abort())
             page.route("https://fonts.googleapis.com/**",lambda route:route.abort())
             errors=[]
             page.on("pageerror",lambda e:errors.append(str(e)))
             page.goto("http://127.0.0.1:5073/",wait_until="domcontentloaded")
-            page.wait_for_timeout(500)
-            assert page.locator("h1").first.is_visible(), "Hero heading not visible"
+            assert page.locator("#gtech-intro-start").is_visible(), "Opening must be visible at DOMContentLoaded"
+            assert page.locator("h1").first.is_visible(), "Hero heading not visible underneath opening"
             assert page.locator('.gtech-intro').count()==1, "Intro missing on first visit"
+            assert not page.locator("#showcase-video").evaluate("(v)=>v.autoplay"), "Hero video must start after opening"
+            assert page.evaluate("window.scrollX") == 0, "Page horizontally scrolled on load"
+            assert page.evaluate("window.scrollY") <= 1, "Home must start at the top"
+            assert page.evaluate("document.documentElement.scrollWidth-window.innerWidth")<=3, "Horizontal overflow on homepage"
             page.wait_for_timeout(600)
             page.screenshot(path=str(DEST/f"{label}_intro.png"))
             # Record the actual particle shatter at three points, not a still mockup.
@@ -58,6 +62,10 @@ try:
             page.evaluate("document.querySelector(\'#gtech-intro-skip\')?.click()")
             page.wait_for_timeout(790)
             assert page.locator(".gtech-intro").count()==0, "Intro not removed after skip"
+            page.goto("http://127.0.0.1:5073/#solucoes",wait_until="domcontentloaded")
+            assert page.locator(".gtech-intro").is_visible(), "Direct deep link must also show opening"
+            page.locator("#gtech-intro-skip").click()
+            page.wait_for_timeout(790)
             page.evaluate("window.scrollTo({top:0,left:0,behavior:'instant'})")
             page.wait_for_timeout(200)
             assert page.locator(".brand-icon img").is_visible(), "Brand image not visible in header"
