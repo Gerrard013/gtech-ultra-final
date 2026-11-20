@@ -78,14 +78,14 @@
   };
   region?.addEventListener("change", updateShipping);
   [cep,city,state].forEach(input => input?.addEventListener("input",updateShipping));
-  quantity.addEventListener("input", update);
-  quantity.addEventListener("change", update);
+  quantity.addEventListener("input", updateShipping);
+  quantity.addEventListener("change", updateShipping);
   document.querySelectorAll("[data-quantity-step]").forEach(button => button.addEventListener("click", () => {
     const step = Number(button.dataset.quantityStep);
     const current = Number(quantity.value);
     const next = Math.min(maximum, Math.max(minimum, (Number.isInteger(current) ? current : 1) + step));
     quantity.value = String(next);
-    update();
+    updateShipping();
   }));
   form?.addEventListener("submit", () => {
     const submit = form.querySelector("button[type=submit]");
