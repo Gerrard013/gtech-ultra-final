@@ -100,7 +100,7 @@
     <section id="comprar" class="section wrap shop-section" aria-labelledby="shop-title">
       <div class="section-head reveal">
         <div><span class="eyebrow">ESCOLHA. CONFIRA. COMECE.</span><h2 id="shop-title">Seu próximo passo,<br><em>sem complicação.</em></h2></div>
-        <p>Serviços com valor definido para começar agora. Para sites, NFC e projetos personalizados, <a class="shop-inline-link" href="#solucoes">conheça todas as soluções</a>.</p>
+        <p>Serviços com valor definido para começar agora. Para sites e projetos personalizados, <a class="shop-inline-link" href="#solucoes">conheça todas as soluções</a>.</p>
       </div>
       <ol class="purchase-path" aria-label="Etapas da compra">
         <li><span>01</span><div><strong>Escolha o serviço</strong><small>Veja o escopo e o valor.</small></div></li>
@@ -109,19 +109,19 @@
       </ol>
       <div class="shop-layout">
         <div class="offer-grid">
-          {% for sku in ['foto', 'google'] %}{% set offer = checkout_offers[sku] %}
+          {% for sku in ['foto', 'google', 'nfc'] %}{% set offer = checkout_offers[sku] %}
           <article class="offer-card reveal" id="oferta-{{ sku }}">
-            <div class="offer-heading"><span class="offer-symbol" aria-hidden="true">{{ '▧' if sku == 'foto' else '⌖' }}</span><span class="offer-tag">{{ 'IMAGEM & MEMÓRIA' if sku == 'foto' else 'PRESENÇA LOCAL' }}</span></div>
+            <div class="offer-heading"><span class="offer-symbol" aria-hidden="true">{{ '▧' if sku == 'foto' else ('⌖' if sku == 'google' else '⌁') }}</span><span class="offer-tag">{{ 'IMAGEM & MEMÓRIA' if sku == 'foto' else ('PRESENÇA LOCAL' if sku == 'google' else 'NFC PERSONALIZADO') }}</span></div>
             <h3>{{ offer.title }}</h3>
             <p class="offer-description">{{ offer.description }}</p>
             <div class="offer-price"><strong>R$ {{ '%.2f'|format(offer.cents / 100)|replace('.', ',') }}</strong><span>pagamento único</span></div>
             <ul class="offer-includes">
-              <li>{{ 'Restauração básica de uma fotografia' if sku == 'foto' else 'Revisão e organização das informações' }}</li>
-              <li>{{ 'Entrega digital e atendimento pelo WhatsApp' if sku == 'foto' else 'Perfil sujeito às regras e à elegibilidade do Google' }}</li>
+              <li>{{ 'Restauração básica de uma fotografia' if sku == 'foto' else ('Revisão e organização das informações' if sku == 'google' else 'Ajuste a quantidade antes de pagar') }}</li>
+              <li>{{ 'Entrega digital e atendimento pelo WhatsApp' if sku == 'foto' else ('Perfil sujeito às regras e à elegibilidade do Google' if sku == 'google' else 'Configuração incluída; entrega em Belém/PA') }}</li>
               <li>Sem mensalidade neste serviço</li>
             </ul>
-            <a class="btn btn-solid offer-cta" href="{{ url_for('checkout_product',sku=sku) }}">{% if checkout_enabled and not drive_preview_enabled %}Continuar para pagamento{% elif drive_preview_enabled %}Visualizar compra{% else %}Ver detalhes do serviço{% endif %} <span aria-hidden="true">↗</span></a>
-            <small class="offer-footnote">{{ 'Fotos com danos complexos precisam de orçamento.' if sku == 'foto' else 'Serviço independente, sem garantia de posição nas buscas.' }}</small>
+            <a class="btn btn-solid offer-cta" href="{{ url_for('checkout_product',sku=sku) }}">{% if checkout_enabled and not drive_preview_enabled and (sku != 'nfc' or nfc_checkout_enabled) %}Continuar para pagamento{% elif drive_preview_enabled %}Visualizar compra{% else %}Ver detalhes do serviço{% endif %} <span aria-hidden="true">↗</span></a>
+            <small class="offer-footnote">{{ 'Fotos com danos complexos precisam de orçamento.' if sku == 'foto' else ('Serviço independente, sem garantia de posição nas buscas.' if sku == 'google' else 'Venda sujeita a estoque confirmado e entrega local.') }}</small>
           </article>
           {% endfor %}
         </div>
@@ -146,11 +146,11 @@
         <article class="service-card reveal">
           <div class="service-top"><span class="service-n">{{ '%02d'|format(loop.index) }}</span><span class="service-symbol" aria-hidden="true">{{ service.symbol }}</span></div>
           <div class="service-info"><span class="service-category">{{ service.category }}</span><h3>{{ service.title }}</h3><p>{{ service.description }}</p></div>
-          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions">{% if service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Ver pedido de {{ service.title }}">{% if checkout_enabled and not drive_preview_enabled %}Pagar online{% else %}Ver detalhes{% endif %} <span aria-hidden="true">↗</span></a>{% else %}<a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
+          <div class="service-foot"><span class="service-price">{{ service.price }}</span><span class="service-actions">{% if service.checkout_sku %}<a class="service-link service-buy" href="{{ url_for('checkout_product',sku=service.checkout_sku) }}" aria-label="Ver pedido de {{ service.title }}">{% if checkout_enabled and not drive_preview_enabled and (service.id != 'nfc' or nfc_checkout_enabled) %}Pagar online{% else %}Ver detalhes{% endif %} <span aria-hidden="true">↗</span></a>{% else %}<a href="#contato" class="service-link" data-product="{{ service.form_value }}" aria-label="Pedir orçamento para {{ service.title }}">Orçamento <span aria-hidden="true">↗</span></a>{% endif %}</span></div>
         </article>
         {% endfor %}
       </div>
-      <p class="service-disclaimer">* Preços e escopos sujeitos à confirmação. Sites: manutenção de R$ 149,99/mês contratada separadamente. O serviço de perfil empresarial é independente do Google, sem garantia de classificação ou aprovação.</p>
+      <p class="service-disclaimer">* NFC: compra direta sujeita a estoque confirmado, quantidade e entrega em Belém/PA. Preços e escopos sujeitos à confirmação. Sites: manutenção de R$ 149,99/mês contratada separadamente. O serviço de perfil empresarial é independente do Google, sem garantia de classificação ou aprovação.</p>
     </section>
 
     <section id="experiencia" class="spotlight" aria-label="Experiência G Tech">
