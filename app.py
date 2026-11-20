@@ -271,7 +271,7 @@ def _new_checkout_intent(sku: str) -> str:
 
 
 def _valid_checkout_intent(sku: str, value: str) -> bool:
-    if not re.fullmatch(r"[A-Za-z0-9_-]{24,64}\\.[a-f0-9]{64}", value or ""):
+    if not re.fullmatch(r"[A-Za-z0-9_-]{24,64}\.[a-f0-9]{64}", value or ""):
         return False
     identity = session.get("checkout_identity", "")
     if not identity:
