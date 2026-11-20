@@ -1166,6 +1166,11 @@ def checkout_product(sku: str):
             inventory.available -= quantity
         order.lead_id = lead.id
         db.session.add(order)
+        # Explicit parent INSERT before adding the address/checkout-attempt
+        # children. ORM objects are bound by scalar FK IDs (no relationship),
+        # so mapper flush order must not be relied on for PostgreSQL FKs.
+        # Both INSERTs stay inside the same transaction and rollback together.
+        db.session.flush()
         if sku == "nfc":
             db.session.add(NfcDeliveryAddress(
                 order_id=order.id, cep=address["cep"], state=address["state"],
