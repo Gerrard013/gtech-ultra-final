@@ -5,7 +5,7 @@
 **Marca:** G Tech | Innovation & Solutions  
 **CNPJ informado:** 70.125.976/0001-76 (situação fiscal/CCMEI não reconsultada neste documento)  
 **Canal oficial de venda:** (91) 98615-2222  
-**SITE OFICIAL (produção preservada):** https://gtech-ultra-final-production.up.railway.app/  
+**SITE OFICIAL (produção preservada):** https://gtech-oficial.up.railway.app/  
 **PR de preparação (NÃO mesclada):** https://github.com/Gerrard013/gtech-ultra-final/pull/1  
 **STAGING para revisão:** https://gtech-site-v2-preview-preview.up.railway.app/
 
@@ -105,3 +105,18 @@ O propósito do plano é faturar com segurança, não executar 100 alterações 
 
 ### Ordem de execução mantida
 SITE + CRM + MERCADO PAGO -> Instagram -> vídeos/posts e programação -> WhatsApp Business -> impressão 3D como compra financeira em paralelo.
+
+
+## Atualização do IA Council — 19/11/2026: SENTINELA
+A partir desta revisão, **SENTINELA** é o especialista permanente do conselho para cibersegurança, pagamentos online, fraude, privacidade e proteção de infraestrutura. O SENTINELA deve participar da auditoria de cada nova funcionalidade e pode recomendar bloqueio técnico de publicação quando houver risco alto ou crítico. Ele não substitui pentest externo, responsável jurídico nem o aceite do CEO.
+
+**Estado documentado, não publicar automaticamente:**
+- PR #9: corrigir validação de campos sem apagar dados de clientes; esta PR ainda precisa ser integrada antes da nova venda NFC.
+- PR #10: NFC em quantidade variável (R$79,99/unidade), estoque persistente, limite 8, entrega local Belém/PA, nonce HMAC anti-duplo-pedido, Docker não-root e dependências Flask atualizadas.
+- PR #8: vitrine ampliada de serviços de TI segue separada e sem publicação; reconciliar mudanças após aprovar #9 e #10.
+- Segurança de dependências: vulnerabilidade relatada pelo pip-audit para Flask 3.0.3; versão de revisão atualizada para 3.1.3. Confirmar revalidação no CI e produção depois de merge autorizado.
+- Acesso administrativo permanece por HTTP Basic Auth e exige defesa MFA/Zero Trust externa; rate limit em memória não substitui WAF e proteção distribuída.
+- A venda online NFC só pode ser liberada após conferir estoque físico, termos de entrega, Pix/cartão, alerta do PostgreSQL, backup restaurável, rotação de credenciais expostas e teste de compra/estorno autorizados.
+- **Nenhuma mudança em Railway, dados de clientes, pagamentos reais ou publicação foi realizada nesta revisão.**
+
+Documento de auditoria: `docs/SENTINELA_AUDITORIA_NFC_2026-11-19.md`.
