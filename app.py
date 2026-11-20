@@ -176,6 +176,18 @@ class NfcInventory(db.Model):
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class NfcStockMovement(db.Model):
+    """Audited manual inventory adjustments; source of truth is the site's database."""
+    __tablename__ = "gtech_nfc_stock_movements"
+    id = db.Column(db.String(36), primary_key=True)
+    delta = db.Column(db.Integer, nullable=False)
+    available_before = db.Column(db.Integer, nullable=False)
+    available_after = db.Column(db.Integer, nullable=False)
+    actor = db.Column(db.String(100), nullable=False)
+    reason = db.Column(db.String(240), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+
 class NfcStockUnavailable(Exception):
     """There is no confirmed inventory to reserve for this purchase."""
 
@@ -1374,6 +1386,72 @@ def sitemap():
         "</urlset>"
     )
     return Response(content, mimetype="application/xml")
+
+
+@app.route("/internal/nfc/stock", methods=["GET", "POST"])
+def internal_nfc_stock():
+    """Private CRM proxy endpoint: never accessible without a shared S2S secret."""
+    secret = os.getenv("GTECH_NFC_STOCK_SECRET", "").strip()
+    supplied = request.headers.get("X-GTech-NFC-Key", "")
+    if len(secret) < 32 or not hmac.compare_digest(supplied, secret):
+        abort(403)
+    if not _secure_db_available() and _deployed:
+        abort(503)
+    if request.method == "GET":
+        history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
+        return {
+            "sku": "nfc", "available": _nfc_available_units(),
+            "unitPriceCents": CHECKOUT_OFFERS["nfc"]["cents"],
+            "maxPerOrder": CHECKOUT_OFFERS["nfc"]["max_quantity"],
+            "movements": [
+                {"id": h.id, "delta": h.delta,
+                 "before": h.available_before, "after": h.available_after,
+                 "actor": h.actor, "reason": h.reason,
+                 "createdAt": h.created_at.isoformat() + "Z"} for h in history
+            ],
+        }, 200, {"Cache-Control": "no-store, private"}
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return {"error": "JSON inválido."}, 400
+    movement_id = payload.get("movementId")
+    delta = payload.get("delta")
+    reason = payload.get("reason")
+    actor = payload.get("actor")
+    if (not isinstance(movement_id, str) or len(movement_id) != 36
+            or not re.fullmatch(r"[0-9a-f-]{36}", movement_id)
+            or type(delta) is not int or delta == 0 or abs(delta) > 500
+            or not isinstance(reason, str) or not (8 <= len(reason.strip()) <= 240)
+            or not isinstance(actor, str) or not (2 <= len(actor.strip()) <= 100)):
+        return {"error": "Movimento inválido; informe quantidade e justificativa."}, 400
+    try:
+        existing = db.session.get(NfcStockMovement, movement_id)
+        if existing is not None:
+            return {"ok": True, "available": _nfc_available_units(),
+                    "duplicate": True}, 200, {"Cache-Control": "no-store, private"}
+        row = NfcInventory.query.filter_by(id=1).with_for_update().one_or_none()
+        if row is None:
+            row = NfcInventory(id=1, available=_nfc_initial_units())
+            db.session.add(row)
+            db.session.flush()
+        before = row.available
+        after = before + delta
+        if after < 0 or after > 500:
+            db.session.rollback()
+            return {"error": "Ajuste excede o estoque disponível ou limite permitido."}, 409
+        row.available = after
+        db.session.add(NfcStockMovement(
+            id=movement_id, delta=delta,
+            available_before=before, available_after=after,
+            actor=actor.strip(), reason=reason.strip()))
+        db.session.commit()
+        return {"ok": True, "available": after}, 200, {"Cache-Control": "no-store, private"}
+    except IntegrityError:
+        db.session.rollback()
+        return {"error": "Ajuste concorrente; atualize o estoque antes de tentar novamente."}, 409
+    except Exception:
+        db.session.rollback()
+        app.logger.exception("Falha interna no ajuste de estoque NFC")
+        return {"error": "Estoque indisponível. Nenhuma confirmação de ajuste."}, 503
 
 
 @app.route("/health")
