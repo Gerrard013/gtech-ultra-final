@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="{{ url_for('static',filename='official.css',v='20261117') }}">
 <link rel="stylesheet" href="{{ url_for('static',filename='commerce.css',v='20261119-form') }}">
 <script defer src="{{ url_for('static', filename='form-validation.js', v='20261119') }}"></script>
+<script defer src="{{ url_for('static', filename='nfc-quantity.js', v='20261119') }}"></script>
 </head><body class="checkout-page">
 <header class="checkout-top"><a class="checkout-brand" href="{{ url_for('index') }}#comprar" aria-label="Voltar ao site G Tech"><img src="{{ url_for('static',filename='assets/gtech-logo.png') }}" alt="">G TECH</a><a class="checkout-back" href="{{ url_for('index') }}#comprar">← Voltar aos serviços</a></header>
 <div class="checkout-wrap">
@@ -16,9 +17,9 @@
 <main class="checkout-main">
 <section class="checkout-summary" aria-labelledby="order-title">
 <span class="eyebrow">SEU PEDIDO / G TECH</span><h1 id="order-title">{{ offer.title }}</h1><p>{{ offer.description }}</p>
-<div class="checkout-total"><span>Total · 1 serviço</span><strong>R$ {{ '%.2f'|format(offer.cents / 100)|replace('.', ',') }}</strong></div>
+<div class="checkout-total"><span>{% if sku == 'nfc' %}Total estimado · <span id="nfc-quantity-summary">1 unidade</span>{% else %}Total · 1 serviço{% endif %}</span><strong {% if sku == 'nfc' %}id="nfc-total-price" data-unit-cents="{{ offer.cents }}" aria-live="polite"{% endif %}>R$ {{ '%.2f'|format(offer.cents / 100)|replace('.', ',') }}</strong></div>
 <p class="checkout-single">Pagamento único. Sem assinatura ou renovação automática.</p>
-<ul><li>{{ 'Restauração básica de uma fotografia; danos complexos precisam de orçamento.' if sku == 'foto' else 'Revisão e organização do perfil, sujeito à elegibilidade do negócio.' }}</li><li>Atendimento e próximos passos pelo WhatsApp informado.</li><li>Condições da forma de pagamento exibidas antes de confirmar.</li></ul>
+<ul><li>{% if sku == 'nfc' %}Preço por unidade: R$ 79,99. Configuração incluída.{% elif sku == 'foto' %}Restauração básica de uma fotografia; danos complexos precisam de orçamento.{% else %}Revisão e organização do perfil, sujeito à elegibilidade do negócio.{% endif %}</li><li>{% if sku == 'nfc' %}Entrega exclusivamente em Belém/PA; endereço e prazo confirmados pelo WhatsApp antes do envio.{% else %}Atendimento e próximos passos pelo WhatsApp informado.{% endif %}</li><li>Condições da forma de pagamento exibidas antes de confirmar.</li></ul>
 <div class="checkout-provider"><span class="payment-provider">MERCADO PAGO</span><p>Você escolhe a forma de pagamento no checkout. Os dados do cartão são preenchidos no ambiente do Mercado Pago.</p></div>
 </section>
 <section class="checkout-form" aria-labelledby="checkout-title">
@@ -31,13 +32,23 @@
 <div class="honeypot" aria-hidden="true"><label>Website<input name="website" tabindex="-1" autocomplete="off"></label></div>
 <label>Seu nome completo<input name="nome" required minlength="2" maxlength="100" autocomplete="name" placeholder="Nome e sobrenome" value="{{ (form_values or {}).get('nome','') }}" aria-describedby="checkout-name-error" {% if (form_errors or {}).get('nome') %}aria-invalid="true"{% endif %}><small id="checkout-name-error" class="field-error" role="alert" {% if not (form_errors or {}).get('nome') %}hidden{% endif %}>{{ (form_errors or {}).get('nome','') }}</small></label>
 <label>WhatsApp com DDD<input name="whatsapp" type="tel" required maxlength="20" autocomplete="tel-national" inputmode="tel" placeholder="(91) 9XXXX-XXXX" value="{{ (form_values or {}).get('whatsapp','') }}" aria-describedby="checkout-phone-error" {% if (form_errors or {}).get('whatsapp') %}aria-invalid="true"{% endif %}><small id="checkout-phone-error" class="field-error" role="alert" {% if not (form_errors or {}).get('whatsapp') %}hidden{% endif %}>{{ (form_errors or {}).get('whatsapp','') }}</small></label>
+{% if sku == 'nfc' %}
+<div class="nfc-quantity-panel">
+<label for="nfc-quantity">Quantidade de plaquinhas NFC</label>
+<div class="nfc-quantity-controls"><button type="button" data-quantity-step="-1" aria-label="Diminuir quantidade">−</button><input id="nfc-quantity" name="quantity" type="number" inputmode="numeric" min="1" max="{{ [offer.max_quantity, nfc_available or offer.max_quantity] | min }}" step="1" required value="{{ (form_values or {}).get('quantity','1') }}" aria-describedby="nfc-quantity-help nfc-quantity-error" {% if (form_errors or {}).get('quantity') %}aria-invalid="true"{% endif %}><button type="button" data-quantity-step="1" aria-label="Aumentar quantidade">+</button></div>
+<small id="nfc-quantity-help" class="form-helper">Até {{ offer.max_quantity }} unidades por pedido. O total é calculado novamente no servidor antes da cobrança.</small>
+<small id="nfc-quantity-error" class="field-error" role="alert" {% if not (form_errors or {}).get('quantity') %}hidden{% endif %}>{{ (form_errors or {}).get('quantity','') }}</small>
+</div>
+<label class="consent"><input type="checkbox" name="nfc_local_delivery" value="yes" required {% if (form_values or {}).get('nfc_local_delivery') %}checked{% endif %}><span>Confirmo entrega em Belém/PA e entendo que o endereço e o prazo serão combinados pelo WhatsApp antes do envio.</span></label>
+<small class="field-error" role="alert" {% if not (form_errors or {}).get('nfc_local_delivery') %}hidden{% endif %}>{{ (form_errors or {}).get('nfc_local_delivery','') }}</small>
+{% endif %}
 <label class="consent"><input type="checkbox" name="consentimento" value="yes" required {% if (form_values or {}).get('consentimento') %}checked{% endif %}><span>Autorizo o uso dos meus dados para este pedido e atendimento, conforme a <a href="{{ url_for('privacy_policy') }}" target="_blank" rel="noopener noreferrer">Política de Privacidade</a>. Não é autorização para campanhas.</span></label>
 <label class="consent"><input type="checkbox" name="termos" value="yes" required {% if (form_values or {}).get('termos') %}checked{% endif %}><span>Li e aceito os <a href="{{ url_for('terms_of_service') }}" target="_blank" rel="noopener noreferrer">Termos de serviço e compra</a>, sem prejuízo dos meus direitos legais.</span></label>
 {% if preview_only %}<p role="status" class="checkout-alert">HOMOLOGAÇÃO: esta tela não coleta pedidos nem processa pagamentos.</p><button class="btn btn-solid checkout-submit" type="button" disabled aria-disabled="true">Pagamento indisponível na homologação</button>{% else %}<button class="btn btn-solid checkout-submit" type="submit">Ir ao Mercado Pago <span aria-hidden="true">↗</span></button>{% endif %}
 </form>
 <p class="checkout-note">Esta tela não cobra seu cartão. Você confirma o pagamento na próxima etapa.</p>
 {% else %}
-<div class="checkout-unavailable"><p class="checkout-alert" role="status">O pagamento online está temporariamente indisponível. Nenhum pedido foi cobrado.</p><p>Fale com a G Tech para confirmar os detalhes e combinar a contratação deste serviço.</p><a class="btn btn-solid" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar sobre este serviço ↗</a></div>
+<div class="checkout-unavailable"><p class="checkout-alert" role="status">{% if sku == 'nfc' %}Compra online de NFC ainda não liberada: estoque físico e entrega precisam ser confirmados. Nenhum pedido foi cobrado.{% else %}O pagamento online está temporariamente indisponível. Nenhum pedido foi cobrado.{% endif %}</p><p>Fale com a G Tech para confirmar os detalhes e combinar a contratação deste serviço.</p><a class="btn btn-solid" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Conversar sobre este serviço ↗</a></div>
 {% endif %}
 <a class="checkout-support" href="{{ contacts.whatsapp }}" target="_blank" rel="noopener noreferrer">Precisa de ajuda? Fale com a G Tech.</a>
 </section>
