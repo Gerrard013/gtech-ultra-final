@@ -520,6 +520,18 @@ class OfficialSiteTests(unittest.TestCase):
                 self.assertEqual(order.quantity, 3)
                 self.assertEqual(NfcInventory.query.one().available, 5)
 
+    def test_nfc_fallback_allows_quantity_inquiry_without_charging(self):
+        from app import CheckoutOrder
+        page = self.client.get("/comprar/nfc")
+        self.assertEqual(page.status_code, 200)
+        html = page.get_data(as_text=True)
+        self.assertIn('id="nfc-quantity"', html)
+        self.assertIn('id="nfc-whatsapp-order"', html)
+        self.assertIn("Compra online de NFC ainda não liberada", html)
+        self.assertNotIn('id="checkout-form"', html)
+        with app.app_context():
+            self.assertEqual(CheckoutOrder.query.count(), 0)
+
     def test_nfc_sale_is_locked_when_stock_not_verified(self):
         from app import CheckoutOrder
         with patch.dict(os.environ, {"GTECH_NFC_INITIAL_STOCK": "",
