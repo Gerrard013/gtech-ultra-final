@@ -14,6 +14,7 @@ import threading
 import uuid
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict, deque
@@ -400,6 +401,26 @@ def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, reque
     if not isinstance(data, dict):
         raise ValueError("Resposta inesperada do gateway")
     return data
+
+
+def _mp_gateway_authenticated() -> bool | None:
+    """Private read-only merchant verification for NEXO.
+
+    True: authenticated merchant matches the configured collector.
+    False: missing/mismatched credentials or explicit 401/403.
+    None: transient gateway/network error; do not claim success.
+    Never returns or logs the merchant id, access token or response body.
+    """
+    if not _mp_credentials_ready():
+        return False
+    try:
+        merchant = _mp_request("/users/me", timeout=3)
+        expected = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
+        return hmac.compare_digest(str(merchant.get("id") or ""), expected)
+    except urllib.error.HTTPError as exc:
+        return False if exc.code in (401, 403) else None
+    except Exception:
+        return None
 
 
 def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
@@ -1517,6 +1538,42 @@ def _nfc_operational_priority(order, fulfillment, now):
     return "waiting", "Aguardando confirmação de pagamento"
 
 
+@app.get("/internal/nfc/health")
+def internal_nfc_health():
+    """Read-only, private S2S conformity contract. Never return merchant identifiers,
+    payment details, contacts, credentials, session data, or an implicit approval."""
+    _authorize_internal_nfc()
+    if not _secure_db_available() and _deployed:
+        abort(503)
+    pending = CheckoutPaymentDelivery.query.filter(
+        CheckoutPaymentDelivery.delivered_revision < CheckoutPaymentDelivery.revision
+    ).count()
+    pending_leads = CrmDelivery.query.filter(CrmDelivery.status != "delivered").count()
+    s2s_secret_ready = len(os.getenv("GTECH_SITE_LEAD_SECRET", "").strip()) >= 32
+    lead_sync_ready = (
+        os.getenv("CRM_LEAD_SYNC_ENABLED", "false").lower() == "true"
+        and os.getenv("CRM_LEAD_CAPTURE_URL", "").strip() == CRM_SITE_ENDPOINT
+        and s2s_secret_ready
+    )
+    payment_sync_ready = (
+        os.getenv("CRM_PAYMENT_SYNC_ENABLED", "false").lower() == "true"
+        and s2s_secret_ready
+    )
+    return {
+        "contractVersion": 1,
+        "databasePersistent": _secure_db_available(),
+        "gatewayConfigured": _mp_credentials_ready(),
+        "gatewayAuthenticated": _mp_gateway_authenticated(),
+        "checkoutEnabled": _checkout_enabled(),
+        "nfcSalesEnabled": _nfc_checkout_enabled(),
+        "crmLeadSyncEnabled": lead_sync_ready,
+        "crmPaymentSyncEnabled": payment_sync_ready,
+        "pendingLeadSync": pending_leads,
+        "pendingPaymentSync": pending,
+        "totalNfcOrders": CheckoutOrder.query.filter_by(sku="nfc").count(),
+    }, 200, {"Cache-Control": "no-store, private"}
+
+
 @app.route("/internal/nfc/stock", methods=["GET", "POST"])
 def internal_nfc_stock():
     """Private CRM proxy endpoint; no unauthenticated order or address access."""
@@ -1526,6 +1583,9 @@ def internal_nfc_stock():
     if request.method == "GET":
         history = NfcStockMovement.query.order_by(NfcStockMovement.created_at.desc()).limit(20).all()
         # Full addresses are only sent over the private S2S channel to CEO/ADMIN CRM.
+        # Total is required by CRM scanners to distinguish complete queues from
+        # the last 100 orders; stale older alerts must never be auto-resolved.
+        total_orders = CheckoutOrder.query.filter_by(sku="nfc").count()
         recent = CheckoutOrder.query.filter_by(sku="nfc").order_by(CheckoutOrder.created_at.desc()).limit(100).all()
         refs = [o.id for o in recent]
         addresses = {a.order_id: a for a in NfcDeliveryAddress.query.filter(NfcDeliveryAddress.order_id.in_(refs)).all()} if refs else {}
@@ -1559,6 +1619,7 @@ def internal_nfc_stock():
             })
         return {
             "sku": "nfc", "available": _nfc_available_units(),
+            "totalOrders": total_orders,
             "orders": orders,
             "unitPriceCents": CHECKOUT_OFFERS["nfc"]["cents"],
             "maxPerOrder": CHECKOUT_OFFERS["nfc"]["max_quantity"],

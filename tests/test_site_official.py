@@ -751,6 +751,74 @@ class OfficialSiteTests(unittest.TestCase):
             with app.app_context():
                 self.assertEqual(NfcStockMovement.query.count(), 1)
 
+    def test_private_conformity_health_never_leaks_gateway_or_client_secrets(self):
+        secret = "ci-site-nfc-health-secret-123456789012345"
+        with patch.dict(os.environ, {
+            "GTECH_NFC_STOCK_SECRET": secret,
+            "CRM_PAYMENT_SYNC_ENABLED": "false",
+            "CRM_LEAD_SYNC_ENABLED": "false",
+            "MERCADOPAGO_ACCESS_TOKEN": "APP_USR-CI-SYNTHETIC-NOT-REAL",
+            "MERCADOPAGO_WEBHOOK_SECRET": "ci-webhook-secret-123456789",
+            "MERCADOPAGO_COLLECTOR_ID": "987654321",
+            "MERCADOPAGO_CNPJ_VERIFIED": "false",
+            "GTECH_CHECKOUT_ENABLED": "false",
+        }):
+            self.assertEqual(self.client.get("/internal/nfc/health").status_code, 403)
+            self.assertEqual(self.client.get("/internal/nfc/health",
+                headers={"X-GTech-NFC-Key": "wrong"}).status_code, 403)
+            with patch("app._mp_request", return_value={"id": "987654321"}) as merchant_call:
+                result = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                merchant_call.assert_called_once_with("/users/me", timeout=3)
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["gatewayAuthenticated"], True)
+            self.assertEqual(result.json["contractVersion"], 1)
+            self.assertEqual(result.json["checkoutEnabled"], False)
+            self.assertEqual(result.json["nfcSalesEnabled"], False)
+            self.assertEqual(result.json["crmPaymentSyncEnabled"], False)
+            self.assertEqual(result.json["pendingLeadSync"], 0)
+            self.assertEqual(result.json["pendingPaymentSync"], 0)
+            self.assertEqual(result.json["totalNfcOrders"], 0)
+            with patch("app._mp_request", side_effect=__import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+                "https://api.mercadopago.com/users/me", 401, "Unauthorized", {}, None
+            )):
+                denied = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                self.assertEqual(denied.status_code, 200)
+                self.assertEqual(denied.json["gatewayAuthenticated"], False)
+            with patch("app._mp_request", side_effect=TimeoutError("synthetic network failure")):
+                unavailable = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                self.assertIsNone(unavailable.json["gatewayAuthenticated"])
+            self.assertEqual(result.headers.get("Cache-Control"), "no-store, private")
+            raw = result.get_data(as_text=True)
+            for forbidden in [secret, "APP_USR-CI", "987654321", "nome", "whatsapp",
+                              "Authorization", "MERCADOPAGO_ACCESS_TOKEN"]:
+                self.assertNotIn(forbidden, raw)
+
+    def test_nfc_snapshot_reports_total_even_when_queue_is_limited_to_100(self):
+        from app import CheckoutOrder
+        import uuid
+        secret = "ci-nfc-queue-only-secret-123456789012345"
+        with patch.dict(os.environ, {"GTECH_NFC_STOCK_SECRET": secret,
+                                     "GTECH_NFC_INITIAL_STOCK": "8"}):
+            with app.app_context():
+                lead = Lead(nome="Cliente Sintético", whatsapp="91982736418",
+                            negocio="Somente testes", servico="Placa NFC Personalizada",
+                            prazo="Teste", objetivo="Auditar visibilidade da fila")
+                db.session.add(lead)
+                db.session.flush()
+                for _ in range(101):
+                    db.session.add(CheckoutOrder(id=str(uuid.uuid4()), lead_id=lead.id,
+                        sku="nfc", quantity=1, total_cents=7999, status="pending"))
+                db.session.commit()
+            result = self.client.get("/internal/nfc/stock",
+                headers={"X-GTech-NFC-Key": secret})
+            self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["totalOrders"], 101)
+            self.assertEqual(len(result.json["orders"]), 100)
+            self.assertGreater(result.json["totalOrders"], len(result.json["orders"]))
+
     def test_nfc_fallback_allows_quantity_inquiry_without_charging(self):
         from app import CheckoutOrder
         page = self.client.get("/comprar/nfc")
