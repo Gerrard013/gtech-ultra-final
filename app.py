@@ -14,6 +14,7 @@ import threading
 import uuid
 import time
 import urllib.request
+import urllib.error
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from collections import defaultdict, deque
@@ -400,6 +401,26 @@ def _mp_request(path: str, data: dict | None = None, *, timeout: int = 12, reque
     if not isinstance(data, dict):
         raise ValueError("Resposta inesperada do gateway")
     return data
+
+
+def _mp_gateway_authenticated() -> bool | None:
+    """Private read-only merchant verification for NEXO.
+
+    True: authenticated merchant matches the configured collector.
+    False: missing/mismatched credentials or explicit 401/403.
+    None: transient gateway/network error; do not claim success.
+    Never returns or logs the merchant id, access token or response body.
+    """
+    if not _mp_credentials_ready():
+        return False
+    try:
+        merchant = _mp_request("/users/me", timeout=3)
+        expected = os.getenv("MERCADOPAGO_COLLECTOR_ID", "").strip()
+        return hmac.compare_digest(str(merchant.get("id") or ""), expected)
+    except urllib.error.HTTPError as exc:
+        return False if exc.code in (401, 403) else None
+    except Exception:
+        return None
 
 
 def _create_mercadopago_preference(order: CheckoutOrder, title: str) -> str:
@@ -1542,6 +1563,7 @@ def internal_nfc_health():
         "contractVersion": 1,
         "databasePersistent": _secure_db_available(),
         "gatewayConfigured": _mp_credentials_ready(),
+        "gatewayAuthenticated": _mp_gateway_authenticated(),
         "checkoutEnabled": _checkout_enabled(),
         "nfcSalesEnabled": _nfc_checkout_enabled(),
         "crmLeadSyncEnabled": lead_sync_ready,
