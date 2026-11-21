@@ -766,9 +766,12 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(self.client.get("/internal/nfc/health").status_code, 403)
             self.assertEqual(self.client.get("/internal/nfc/health",
                 headers={"X-GTech-NFC-Key": "wrong"}).status_code, 403)
-            result = self.client.get("/internal/nfc/health",
-                headers={"X-GTech-NFC-Key": secret})
+            with patch("app._mp_request", return_value={"id": "987654321"}) as merchant_call:
+                result = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                merchant_call.assert_called_once_with("/users/me", timeout=3)
             self.assertEqual(result.status_code, 200)
+            self.assertEqual(result.json["gatewayAuthenticated"], True)
             self.assertEqual(result.json["contractVersion"], 1)
             self.assertEqual(result.json["checkoutEnabled"], False)
             self.assertEqual(result.json["nfcSalesEnabled"], False)
@@ -776,6 +779,17 @@ class OfficialSiteTests(unittest.TestCase):
             self.assertEqual(result.json["pendingLeadSync"], 0)
             self.assertEqual(result.json["pendingPaymentSync"], 0)
             self.assertEqual(result.json["totalNfcOrders"], 0)
+            with patch("app._mp_request", side_effect=__import__("urllib.error", fromlist=["HTTPError"]).HTTPError(
+                "https://api.mercadopago.com/users/me", 401, "Unauthorized", {}, None
+            )):
+                denied = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                self.assertEqual(denied.status_code, 200)
+                self.assertEqual(denied.json["gatewayAuthenticated"], False)
+            with patch("app._mp_request", side_effect=TimeoutError("synthetic network failure")):
+                unavailable = self.client.get("/internal/nfc/health",
+                    headers={"X-GTech-NFC-Key": secret})
+                self.assertIsNone(unavailable.json["gatewayAuthenticated"])
             self.assertEqual(result.headers.get("Cache-Control"), "no-store, private")
             raw = result.get_data(as_text=True)
             for forbidden in [secret, "APP_USR-CI", "987654321", "nome", "whatsapp",
